@@ -218,7 +218,7 @@ Built for the [Kaggle MedGemma Impact Challenge](https://www.kaggle.com/competit
 
 ## 📄 License
 
-Apache 2.0 License. See [LICENSE](LICENSE) for details.
+MIT License. See [LICENSE](LICENSE) for details.
 
 ---
 
