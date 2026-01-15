@@ -1,0 +1,123 @@
+[project]
+name = "medai-compass"
+version = "0.1.0"
+description = "Production-Grade Multi-Agent Medical AI System with MedGemma"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "MedAI Compass Team"}
+]
+keywords = ["medical-ai", "medgemma", "healthcare", "multi-agent"]
+
+dependencies = [
+    # Core ML/AI
+    "torch>=2.0.0",
+    "transformers>=4.40.0",
+    "accelerate>=0.28.0",
+    "bitsandbytes>=0.42.0",
+    "peft>=0.10.0",
+    
+    # Agent Frameworks
+    "langgraph>=0.2.0",
+    "langchain>=0.1.0",
+    "crewai>=0.28.0",
+    "pyautogen>=0.2.0",
+    
+    # Medical/DICOM
+    "pydicom>=2.4.0",
+    "fhirclient>=4.1.0",
+    
+    # API & Web
+    "fastapi>=0.110.0",
+    "uvicorn>=0.27.0",
+    "pydantic>=2.6.0",
+    
+    # Database
+    "sqlalchemy>=2.0.0",
+    "asyncpg>=0.29.0",
+    "redis>=5.0.0",
+    
+    # Security
+    "cryptography>=42.0.0",
+    "pyjwt>=2.8.0",
+    
+    # Utilities
+    "numpy>=1.26.0",
+    "pillow>=10.0.0",
+    "httpx>=0.27.0",
+    "pyyaml>=6.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-mock>=3.12.0",
+    "hypothesis>=6.98.0",
+    
+    # Code Quality
+    "ruff>=0.2.0",
+    "mypy>=1.8.0",
+    "pre-commit>=3.6.0",
+    
+    # Documentation
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.5.0",
+]
+
+evaluation = [
+    "scikit-learn>=1.4.0",
+    "rouge-score>=0.1.2",
+    "bert-score>=0.3.13",
+]
+
+serving = [
+    "vllm>=0.3.0",
+    "tritonclient[all]>=2.42.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+addopts = "-v --tb=short"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "gpu: marks tests that require GPU",
+]
+
+[tool.coverage.run]
+source = ["medai_compass"]
+omit = ["tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true

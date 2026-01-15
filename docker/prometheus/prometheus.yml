@@ -1,0 +1,61 @@
+# Prometheus Configuration for MedAI Compass
+# Collects metrics from API, vLLM, and Triton servers
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'medai-compass'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files:
+  - /etc/prometheus/alert.rules.yml
+
+scrape_configs:
+  # MedAI API Server
+  - job_name: 'medai-api'
+    static_configs:
+      - targets: ['api:8000']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  # vLLM Inference Server
+  - job_name: 'vllm'
+    static_configs:
+      - targets: ['vllm:8000']
+    metrics_path: /metrics
+    scrape_interval: 15s
+
+  # Triton Inference Server
+  - job_name: 'triton'
+    static_configs:
+      - targets: ['triton:8002']
+    scrape_interval: 15s
+
+  # PostgreSQL (via postgres_exporter)
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+    scrape_interval: 30s
+
+  # Redis
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    scrape_interval: 15s
+
+  # MinIO
+  - job_name: 'minio'
+    static_configs:
+      - targets: ['minio:9000']
+    metrics_path: /minio/v2/metrics/cluster
+    scrape_interval: 30s
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
