@@ -1,49 +1,40 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { EscalationCard } from './EscalationCard';
 import { ReviewModal } from './ReviewModal';
 import { Card, CardContent, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Alert } from '@/components/ui/Alert';
-import type { EscalationItem } from '@/types/api';
+import { useEscalations, useEscalationStats, useReviewSubmission } from '@/hooks/useApi';
+import type { EscalationItem, ReviewDecision } from '@/types/api';
 
-type PriorityFilter = 'all' | 'critical' | 'high' | 'medium' | 'low';
+type PriorityFilter = 'all' | 'high' | 'medium' | 'low';
 type CaseTypeFilter = 'all' | 'diagnostic' | 'workflow' | 'communication';
 
-const API_BASE_URL = process.env.API_URL || 'http://localhost:8000';
-
 export function ClinicianDashboard() {
-  const [escalations, setEscalations] = useState<EscalationItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Use hooks with 30s polling
+  const { 
+    escalations, 
+    total, 
+    loading, 
+    error: fetchError, 
+    lastUpdated,
+    refresh 
+  } = useEscalations({}, true);
+  
+  const { stats, loading: statsLoading } = useEscalationStats(true);
+  const { submitReview, loading: reviewLoading, error: reviewError } = useReviewSubmission();
+  
   const [selectedEscalation, setSelectedEscalation] = useState<EscalationItem | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [reviewLoading, setReviewLoading] = useState(false);
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all');
   const [caseTypeFilter, setCaseTypeFilter] = useState<CaseTypeFilter>('all');
+  const [localError, setLocalError] = useState<string | null>(null);
 
-  const fetchEscalations = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/escalations`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch escalations');
-      }
-      const data = await response.json();
-      setEscalations(data.escalations || []);
-    } catch (err) {
-      setError('Failed to load escalations. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchEscalations();
-  }, [fetchEscalations]);
+  // Combine errors
+  const error = localError || fetchError || reviewError;
 
   const handleReview = (escalation: EscalationItem) => {
     setSelectedEscalation(escalation);
@@ -56,50 +47,48 @@ export function ClinicianDashboard() {
   };
 
   const handleApprove = async (id: string, notes: string) => {
-    setReviewLoading(true);
-    try {
-      await fetch(`${API_BASE_URL}/api/v1/escalations/${id}/review`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ decision: 'approved', notes }),
-      });
-      setEscalations(prev => prev.filter(e => e.id !== id));
+    const decision: ReviewDecision = {
+      escalation_id: id,
+      decision: 'approve',
+      notes,
+    };
+    
+    const result = await submitReview(id, decision);
+    if (result) {
       handleCloseModal();
-    } catch (err) {
-      setError('Failed to approve. Please try again.');
-    } finally {
-      setReviewLoading(false);
+      refresh(); // Refresh list after approval
     }
   };
 
   const handleReject = async (id: string, reason: string) => {
-    setReviewLoading(true);
-    try {
-      await fetch(`${API_BASE_URL}/api/v1/escalations/${id}/review`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ decision: 'rejected', notes: reason }),
-      });
-      setEscalations(prev => prev.filter(e => e.id !== id));
+    const decision: ReviewDecision = {
+      escalation_id: id,
+      decision: 'reject',
+      notes: reason,
+    };
+    
+    const result = await submitReview(id, decision);
+    if (result) {
       handleCloseModal();
-    } catch (err) {
-      setError('Failed to reject. Please try again.');
-    } finally {
-      setReviewLoading(false);
+      refresh(); // Refresh list after rejection
     }
   };
 
-  // Filter escalations
+  // Filter escalations locally
   const filteredEscalations = escalations.filter(e => {
     if (priorityFilter !== 'all' && e.priority !== priorityFilter) return false;
-    if (caseTypeFilter !== 'all' && e.case_type !== caseTypeFilter) return false;
+    if (caseTypeFilter !== 'all') {
+      // Map agent_type to case type if available
+      const agentType = (e as any).agent_type;
+      if (agentType && agentType !== caseTypeFilter) return false;
+    }
     return true;
   });
 
-  // Count by priority
-  const criticalCount = escalations.filter(e => e.priority === 'critical').length;
-  const highCount = escalations.filter(e => e.priority === 'high').length;
-  const pendingCount = escalations.length;
+  // Count by priority from local data or stats
+  const highCount = stats?.pending_reviews || escalations.filter(e => e.priority === 'high').length;
+  const pendingCount = stats?.pending_reviews || total;
+  const criticalToday = stats?.critical_findings_today || 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -107,16 +96,23 @@ export function ClinicianDashboard() {
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-gray-900">
-              Clinician Review Dashboard
-            </h1>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Clinician Review Dashboard
+              </h1>
+              {lastUpdated && (
+                <p className="text-sm text-gray-500">
+                  Last updated: {lastUpdated.toLocaleTimeString()} • Auto-refreshing every 30s
+                </p>
+              )}
+            </div>
             <Button
               variant="outline"
-              onClick={fetchEscalations}
+              onClick={refresh}
               disabled={loading}
               aria-label="Refresh"
             >
-              Refresh
+              {loading ? 'Refreshing...' : 'Refresh Now'}
             </Button>
           </div>
         </div>
@@ -145,12 +141,12 @@ export function ClinicianDashboard() {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500">Critical Priority</p>
+                  <p className="text-sm text-gray-500">Critical Today</p>
                   <p className="text-2xl font-bold text-emergency-600">
-                    {criticalCount}
+                    {criticalToday}
                   </p>
                 </div>
-                <Badge variant="emergency" size="lg" pulse={criticalCount > 0}>
+                <Badge variant="emergency" size="lg" pulse={criticalToday > 0}>
                   Critical
                 </Badge>
               </div>
@@ -173,7 +169,7 @@ export function ClinicianDashboard() {
         <div className="flex flex-wrap gap-2 mb-6">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-500">Priority:</span>
-            {(['all', 'critical', 'high', 'medium', 'low'] as PriorityFilter[]).map(
+            {(['all', 'high', 'medium', 'low'] as PriorityFilter[]).map(
               priority => (
                 <Button
                   key={priority}
@@ -205,7 +201,7 @@ export function ClinicianDashboard() {
 
         {/* Error State */}
         {error && (
-          <Alert variant="error" className="mb-6" dismissible onDismiss={() => setError(null)}>
+          <Alert variant="error" className="mb-6" dismissible onDismiss={() => setLocalError(null)}>
             {error}
           </Alert>
         )}

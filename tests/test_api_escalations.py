@@ -6,7 +6,7 @@ TDD: Tests written first to define expected behavior.
 
 import pytest
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 
@@ -70,6 +70,11 @@ class TestEscalationEndpoints:
             })
             mock.submit_review = MagicMock(return_value={
                 "id": "esc-001",
+                "request_id": "req-123",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "patient_id": "patient-001",
+                "reason": "low_confidence",
+                "priority": "medium",
                 "status": "approved",
                 "reviewed_by": "dr.smith",
                 "reviewed_at": datetime.now(timezone.utc).isoformat(),
@@ -81,6 +86,14 @@ class TestEscalationEndpoints:
                 "total_approved_today": 10,
                 "total_rejected_today": 1,
                 "average_review_time_ms": 45000,
+            })
+            mock.create = MagicMock(return_value={
+                "id": "esc-003",
+                "request_id": "req-789",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "reason": "safety_concern",
+                "priority": "high",
+                "status": "pending",
             })
             yield mock
 
@@ -211,6 +224,11 @@ class TestEscalationEndpoints:
         """Should reject escalation with notes."""
         mock_escalation_store.submit_review.return_value = {
             "id": "esc-001",
+            "request_id": "req-123",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "patient_id": "patient-001",
+            "reason": "low_confidence",
+            "priority": "medium",
             "status": "rejected",
             "reviewed_by": "dr.jones",
             "reviewed_at": datetime.now(timezone.utc).isoformat(),
@@ -236,6 +254,11 @@ class TestEscalationEndpoints:
         """Should modify and approve escalation with new response."""
         mock_escalation_store.submit_review.return_value = {
             "id": "esc-001",
+            "request_id": "req-123",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "patient_id": "patient-001",
+            "reason": "low_confidence",
+            "priority": "medium",
             "status": "approved",
             "reviewed_by": "dr.wilson",
             "reviewed_at": datetime.now(timezone.utc).isoformat(),

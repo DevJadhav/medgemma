@@ -53,10 +53,11 @@ export interface CommunicationResponse {
 
 export interface ChatMessage {
   id: string;
-  role: 'patient' | 'assistant';
+  role: 'patient' | 'assistant' | 'user';
   content: string;
-  timestamp: Date;
+  timestamp: Date | string;
   triage_level?: TriageLevel;
+  triageLevel?: TriageLevel; // Alias for camelCase usage
   requires_escalation?: boolean;
   disclaimer?: string;
 }
@@ -129,10 +130,10 @@ export type EscalationReason =
 export interface EscalationItem {
   id: string;
   request_id: string;
-  timestamp: Date;
+  timestamp: Date | string;
   patient_id?: string;
   reason: EscalationReason;
-  priority: 'high' | 'medium' | 'low';
+  priority: 'high' | 'medium' | 'low' | 'critical';
   status: 'pending' | 'in_review' | 'approved' | 'rejected';
   
   // Diagnostic escalation
@@ -142,11 +143,20 @@ export interface EscalationItem {
   communication_result?: CommunicationResponse;
   original_message?: string;
   
+  // Additional fields from backend
+  agent_type?: string;
+  case_type?: string;
+  confidence?: number;
+  confidence_score?: number;
+  uncertainty_score?: number;
+  context?: string;
+  
   // Reviewer info
   assigned_to?: string;
   reviewed_by?: string;
-  reviewed_at?: Date;
+  reviewed_at?: Date | string;
   review_notes?: string;
+  modified_response?: string;
 }
 
 export interface ReviewDecision {

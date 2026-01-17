@@ -42,7 +42,11 @@ export function ReviewModal({
     return null;
   }
 
-  const confidencePercent = Math.round(escalation.confidence * 100);
+  const confidencePercent = escalation.confidence != null 
+    ? Math.round(escalation.confidence * 100) 
+    : escalation.confidence_score != null 
+      ? Math.round(escalation.confidence_score * 100) 
+      : null;
 
   const handleApprove = () => {
     onApprove(escalation.id, notes);
@@ -77,10 +81,10 @@ export function ReviewModal({
                 Review Case
               </h2>
               <Badge
-                variant={priorityVariants[escalation.priority]}
-                pulse={escalation.priority === 'critical'}
+                variant={priorityVariants[escalation.priority] || 'default'}
+                pulse={escalation.priority === 'critical' || escalation.priority === 'high'}
               >
-                {priorityLabels[escalation.priority]}
+                {priorityLabels[escalation.priority] || escalation.priority}
               </Badge>
             </div>
           </div>
@@ -92,7 +96,7 @@ export function ReviewModal({
               <h3 className="text-sm font-medium text-gray-500 mb-1">
                 Patient ID
               </h3>
-              <p className="text-gray-900">{escalation.patient_id}</p>
+              <p className="text-gray-900">{escalation.patient_id || 'Unknown'}</p>
             </div>
 
             {/* Reason */}
@@ -104,35 +108,37 @@ export function ReviewModal({
             </div>
 
             {/* Confidence */}
-            <div>
-              <h3 className="text-sm font-medium text-gray-500 mb-1">
-                AI Confidence
-              </h3>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full ${
-                      confidencePercent < 70
-                        ? 'bg-emergency-500'
-                        : confidencePercent < 85
-                        ? 'bg-urgent-500'
-                        : 'bg-success-500'
-                    }`}
-                    style={{ width: `${confidencePercent}%` }}
-                  />
+            {confidencePercent !== null && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 mb-1">
+                  AI Confidence
+                </h3>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${
+                        confidencePercent < 70
+                          ? 'bg-emergency-500'
+                          : confidencePercent < 85
+                          ? 'bg-urgent-500'
+                          : 'bg-success-500'
+                      }`}
+                      style={{ width: `${confidencePercent}%` }}
+                    />
+                  </div>
+                  <span className="text-sm font-medium">{confidencePercent}%</span>
                 </div>
-                <span className="text-sm font-medium">{confidencePercent}%</span>
               </div>
-            </div>
+            )}
 
             {/* Context */}
-            {escalation.context && (
+            {(escalation.context || escalation.original_message) && (
               <div>
                 <h3 className="text-sm font-medium text-gray-500 mb-1">
                   Additional Context
                 </h3>
                 <pre className="text-sm bg-gray-50 p-3 rounded-lg overflow-x-auto">
-                  {JSON.stringify(escalation.context, null, 2)}
+                  {escalation.original_message || JSON.stringify(escalation.context, null, 2)}
                 </pre>
               </div>
             )}

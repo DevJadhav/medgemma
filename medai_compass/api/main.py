@@ -16,6 +16,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+# Import escalation store early for proper patching in tests
+from medai_compass.utils.escalation_store import escalation_store
+
 # Prometheus metrics
 try:
     from prometheus_client import (
@@ -776,8 +779,6 @@ async def delete_session(session_id: str):
 # =============================================================================
 # Escalation Endpoints for Clinician Review
 # =============================================================================
-# Import escalation store
-from medai_compass.utils.escalation_store import escalation_store
 
 
 @app.get(
