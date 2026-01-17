@@ -1,28 +1,13 @@
 import Link from 'next/link';
 import { Card, CardContent, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { Navigation } from '@/components/Navigation';
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-primary-600">
-              MedAI Compass
-            </h1>
-            <nav className="flex gap-4">
-              <Link href="/chat">
-                <Button variant="outline">Patient Portal</Button>
-              </Link>
-              <Link href="/clinician">
-                <Button>Clinician Dashboard</Button>
-              </Link>
-            </nav>
-          </div>
-        </div>
-      </header>
+      {/* Navigation */}
+      <Navigation />
 
       {/* Hero Section */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">

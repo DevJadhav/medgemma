@@ -87,6 +87,14 @@ INJECTION_PATTERNS = [
     r"bypass\s+(safety|security|filter)",
     r"jailbreak",
     r"dan\s+mode",
+    # Additional injection patterns
+    r"\[\[system\]\]",  # [[system]] bracket notation
+    r"\[\[user\]\]",
+    r"\[\[assistant\]\]",
+    r"override\s+(safety|security|measures)",
+    r"do\s+this\s+instead",
+    r"base64\s*[:\s]",  # Base64 encoded payloads
+    r"decode\s+(this|the\s+following)",
 ]
 
 # Comprehensive jailbreak patterns by category
@@ -105,6 +113,7 @@ JAILBREAK_PATTERNS = {
     ],
     JailbreakCategory.INSTRUCTION_OVERRIDE: [
         r"ignore\s+(previous|all|prior|your|any)\s+instructions?",
+        r"ignore\s+all\s+previous\s+instructions\s+and",  # More specific pattern
         r"forget\s+(everything|all|previous|your)",
         r"disregard\s+(previous|your|all|any)",
         r"override\s+(previous|your|all)",
@@ -114,19 +123,30 @@ JAILBREAK_PATTERNS = {
         r"real\s+instructions?:",
         r"the\s+following\s+takes\s+precedence",
         r"cancel\s+(previous|all)\s+directives",
+        r"do\s+this\s+instead",  # "and do this instead"
+        r"instead\s+of\s+following",
+        r"your\s+new\s+instructions?\s+(are|is)",  # "Your new instructions are..."
+        r"new\s+instructions?\s+(are|is)\s+to",
+        r"your\s+instructions?\s+(are|is)\s+now",
     ],
     JailbreakCategory.CONTEXT_MANIPULATION: [
         r"system\s*[:>]\s*prompt",
         r"\[system\]",
         r"\[assistant\]",
         r"\[user\]",
+        r"\[\[system\]\]",  # Double bracket notation
+        r"\[\[assistant\]\]",
+        r"\[\[user\]\]",
         r"<\|system\|>",
         r"<\|assistant\|>",
         r"\{system_message\}",
         r"\{\{system\}\}",
+        r"###\s*system",  # Markdown-style system prompts
         r"###\s*instruction",
         r"beginning\s+of\s+conversation",
         r"end\s+of\s+system\s+prompt",
+        r"```system",  # Code block style
+        r"```instruction",
     ],
     JailbreakCategory.ENCODING_BYPASS: [
         r"decode\s+(this|the\s+following)\s+(base64|rot13|hex)",

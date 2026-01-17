@@ -358,7 +358,8 @@ def create_app() -> FastAPI:
     application.add_middleware(
         CORSMiddleware,
         allow_origins=os.getenv("CORS_ORIGINS", "").split(",") or ["*"],
-        allow_credentials=True,
+        # SECURITY: Don't allow credentials with wildcard origins
+        allow_credentials=bool(os.getenv("CORS_ORIGINS")),
         allow_methods=["*"],
         allow_headers=["*"],
     )

@@ -6,7 +6,9 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'MedAI Compass',
-  description: 'HIPAA-compliant multi-agent medical AI platform',
+  description: 'HIPAA-compliant multi-agent medical AI platform powered by Google MedGemma',
+  keywords: ['medical AI', 'MedGemma', 'healthcare', 'diagnostics', 'HIPAA'],
+  authors: [{ name: 'MedAI Compass Team' }],
 };
 
 export default function RootLayout({
@@ -15,8 +17,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>{children}</body>
+    <html lang="en" className="h-full">
+      <body className={`${inter.className} h-full bg-gray-50`}>{children}</body>
     </html>
   );
 }

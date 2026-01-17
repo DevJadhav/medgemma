@@ -69,7 +69,13 @@ class TokenManager:
         }
 
         if additional_claims:
-            payload.update(additional_claims)
+            # SECURITY: Prevent additional_claims from overriding protected fields
+            protected_fields = {"user_id", "roles", "mfa_verified", "iat", "exp"}
+            safe_claims = {
+                k: v for k, v in additional_claims.items()
+                if k not in protected_fields
+            }
+            payload.update(safe_claims)
 
         return jwt.encode(payload, self.secret_key, algorithm=self.algorithm)
 
