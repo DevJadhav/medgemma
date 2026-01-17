@@ -1,6 +1,66 @@
 # MedAI Compass - Production Docker Compose
 # HIPAA-compliant multi-service deployment
-# 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+]    "get_gpu_metrics",    "log_training_step",    # Metrics    "run_training_pipeline",    # Pipeline    "create_training_dataset",    "MedicalDataPipeline",    # Data    "get_latest_checkpoint",    "load_checkpoint",    "save_checkpoint",    "CheckpointManager",    # Checkpoints    "TrainingResult",    "TrainingConfig",    "MedGemmaTrainer",    # Training    "ModelNotFoundError",    "get_training_config",    "select_model",    # Model selection__all__ = [)    log_training_step,    get_gpu_metrics,from .metrics import ()    run_training_pipeline,from .pipeline import ()    create_training_dataset,    MedicalDataPipeline,from .data_pipeline import ()    save_checkpoint,    load_checkpoint,    get_latest_checkpoint,    CheckpointManager,from .checkpoint_manager import ()    TrainingResult,    TrainingConfig,    MedGemmaTrainer,from .ray_trainer import ()    select_model,    get_training_config,    ModelNotFoundError,from .model_selector import ("""- 27B model: 8x H100 GPUs with DeepSpeed ZeRO-3- 4B model: Single H100 GPUTraining is performed on Modal cloud GPUs:with support for both MedGemma 4B IT and MedGemma 27B IT models.This module provides distributed training orchestration using Ray Train,# 
 # Usage:
 #   docker-compose up -d                    # Core services
 #   docker-compose --profile gpu up -d      # With GPU inference
@@ -430,6 +490,122 @@ services:
     profiles:
       - monitoring
 
+  # =========================================================================
+  # Ray Head Node (Training Orchestration)
+  # =========================================================================
+  ray-head:
+    build:
+      context: .
+      dockerfile: docker/training.Dockerfile
+      target: ray-head
+    container_name: medai-ray-head
+    restart: unless-stopped
+    ports:
+      - "${RAY_DASHBOARD_PORT:-8265}:8265"
+      - "${RAY_CLIENT_PORT:-10001}:10001"
+      - "${RAY_GCS_PORT:-6379}:6379"
+    environment:
+      - RAY_HEAD_ADDRESS=ray-head:6379
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - HF_TOKEN=${HF_TOKEN}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    volumes:
+      - ray-data:/data
+      - model-cache:/data/huggingface
+      - ./config:/app/config:ro
+    networks:
+      - medai-network
+    healthcheck:
+      test: ["CMD", "ray", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 16G
+        reservations:
+          memory: 8G
+    profiles:
+      - training
+
+  # =========================================================================
+  # Ray Worker Node (Training Workers)
+  # =========================================================================
+  ray-worker:
+    build:
+      context: .
+      dockerfile: docker/training.Dockerfile
+      target: ray-worker
+    container_name: medai-ray-worker
+    restart: unless-stopped
+    environment:
+      - RAY_HEAD_ADDRESS=ray-head:6379
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - HF_TOKEN=${HF_TOKEN}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    volumes:
+      - ray-data:/data
+      - model-cache:/data/huggingface
+      - ./config:/app/config:ro
+    networks:
+      - medai-network
+    depends_on:
+      ray-head:
+        condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+        limits:
+          memory: 64G
+        reservations:
+          memory: 32G
+    profiles:
+      - training
+      - gpu
+
+  # =========================================================================
+  # MLflow Tracking Server
+  # =========================================================================
+  mlflow:
+    build:
+      context: .
+      dockerfile: docker/training.Dockerfile
+      target: mlflow-server
+    container_name: medai-mlflow
+    restart: unless-stopped
+    ports:
+      - "${MLFLOW_PORT:-5000}:5000"
+    environment:
+      - MLFLOW_BACKEND_URI=postgresql://${POSTGRES_USER:-medai}:${POSTGRES_PASSWORD}@postgres:5432/mlflow
+      - MLFLOW_ARTIFACT_ROOT=s3://mlflow-artifacts
+      - AWS_ACCESS_KEY_ID=${MINIO_ACCESS_KEY:-minioadmin}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_SECRET_KEY}
+      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - medai-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles:
+      - training
+
 # =============================================================================
 # Networks
 # =============================================================================
@@ -453,3 +629,4 @@ volumes:
   elasticsearch-data:
   certbot-data:
   data-volume:
+  ray-data:

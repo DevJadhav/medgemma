@@ -1,0 +1,317 @@
+# Modal GPU Configuration for MedGemma Training and Inference
+# Cloud GPU deployment on Modal.com with H100 GPUs
+#
+# Training: 8x H100 (80GB each) = 640GB total VRAM
+# Inference: 1x H100 (80GB)
+#
+# Deployment:
+#   modal deploy medai_compass/modal/training_app.py
+
+# =============================================================================
+# Application Configuration
+# =============================================================================
+app:
+  name: "medai-compass-training"
+  description: "MedGemma fine-tuning and training on Modal H100 GPUs"
+
+# =============================================================================
+# Training Profile (8x H100)
+# =============================================================================
+training:
+  gpu_type: "H100"
+  gpu_count: 8
+  gpu_memory_gb: 80  # Per GPU
+  total_vram_gb: 640  # 8 * 80GB
+  
+  # Container configuration
+  container:
+    image_python_version: "3.11"
+    timeout_seconds: 86400  # 24 hours max
+    container_idle_timeout: 600  # 10 min idle before shutdown
+    retries: 3
+    
+  # Resource allocation
+  resources:
+    cpu: 32
+    memory_gb: 256
+    
+  # Distributed training settings
+  distributed:
+    strategy: "deepspeed_zero3"
+    world_size: 8
+    backend: "nccl"
+    
+  # Volume mounts
+  mounts:
+    - name: "model-cache"
+      path: "/root/.cache/huggingface"
+    - name: "training-data"
+      path: "/data"
+    - name: "checkpoints"
+      path: "/checkpoints"
+      
+  # Environment variables
+  env:
+    CUDA_VISIBLE_DEVICES: "0,1,2,3,4,5,6,7"
+    NCCL_DEBUG: "INFO"
+    NCCL_P2P_DISABLE: "0"
+    TRANSFORMERS_CACHE: "/root/.cache/huggingface/transformers"
+    HF_HOME: "/root/.cache/huggingface"
+    
+  # Secrets (from Modal secrets)
+  secrets:
+    - "huggingface-secret"  # HF_TOKEN
+    - "minio-secret"        # MINIO_ACCESS_KEY, MINIO_SECRET_KEY
+    - "mlflow-secret"       # MLFLOW_TRACKING_URI
+
+# =============================================================================
+# Inference Profile (1x H100)
+# =============================================================================
+inference:
+  gpu_type: "H100"
+  gpu_count: 1
+  gpu_memory_gb: 80
+  
+  # Container configuration
+  container:
+    image_python_version: "3.11"
+    timeout_seconds: 600  # 10 min per request
+    container_idle_timeout: 300  # 5 min idle
+    allow_concurrent_inputs: 10
+    
+  # Resource allocation
+  resources:
+    cpu: 8
+    memory_gb: 64
+    
+  # Auto-scaling
+  autoscaling:
+    min_containers: 0
+    max_containers: 10
+    scaledown_delay: 300  # 5 min before scaling down
+    
+  # Volume mounts
+  mounts:
+    - name: "model-cache"
+      path: "/root/.cache/huggingface"
+      
+  # Environment variables
+  env:
+    CUDA_VISIBLE_DEVICES: "0"
+    TRANSFORMERS_CACHE: "/root/.cache/huggingface/transformers"
+    HF_HOME: "/root/.cache/huggingface"
+    
+  # Secrets
+  secrets:
+    - "huggingface-secret"
+
+# =============================================================================
+# Model Configurations
+# =============================================================================
+models:
+  medgemma_4b_it:
+    hf_model_id: "google/medgemma-4b-it"
+    display_name: "MedGemma 4B IT"
+    
+    # Resource requirements
+    inference:
+      gpu_count: 1
+      vram_required_gb: 8  # With 4-bit quantization
+      dtype: "bfloat16"
+      quantization:
+        enabled: true
+        bits: 4
+        type: "nf4"
+        
+    training:
+      gpu_count: 1
+      vram_required_gb: 16  # Full precision for training
+      dtype: "bfloat16"
+      gradient_checkpointing: true
+      
+    # Model settings
+    settings:
+      max_sequence_length: 8192
+      max_new_tokens: 2048
+      supports_multimodal: true
+      image_resolution: 896
+      
+    # Fine-tuning defaults
+    finetune:
+      method: "lora"
+      lora_r: 16
+      lora_alpha: 32
+      lora_dropout: 0.05
+      target_modules:
+        - "q_proj"
+        - "k_proj"
+        - "v_proj"
+        - "o_proj"
+      learning_rate: 2e-4
+      batch_size: 4
+      gradient_accumulation_steps: 4
+      warmup_ratio: 0.1
+      max_steps: 10000
+
+  medgemma_27b_it:
+    hf_model_id: "google/medgemma-27b-it"
+    display_name: "MedGemma 27B IT"
+    
+    # Resource requirements
+    inference:
+      gpu_count: 1
+      vram_required_gb: 20  # With 4-bit quantization
+      dtype: "bfloat16"
+      quantization:
+        enabled: true
+        bits: 4
+        type: "nf4"
+        
+    training:
+      gpu_count: 8  # Requires 8x H100 for full fine-tuning
+      vram_required_gb: 480  # ~60GB per GPU with ZeRO-3
+      dtype: "bfloat16"
+      gradient_checkpointing: true
+      
+    # Model settings
+    settings:
+      max_sequence_length: 8192
+      max_new_tokens: 4096
+      supports_multimodal: true
+      image_resolution: 896
+      
+    # Fine-tuning defaults (requires DeepSpeed)
+    finetune:
+      method: "lora"
+      lora_r: 64
+      lora_alpha: 128
+      lora_dropout: 0.05
+      target_modules:
+        - "q_proj"
+        - "k_proj"
+        - "v_proj"
+        - "o_proj"
+      learning_rate: 1e-4
+      batch_size: 1
+      gradient_accumulation_steps: 16
+      warmup_ratio: 0.1
+      max_steps: 10000
+      
+      # DeepSpeed configuration for 27B
+      deepspeed:
+        zero_stage: 3
+        offload_optimizer: true
+        offload_param: false
+        overlap_comm: true
+        contiguous_gradients: true
+        reduce_bucket_size: 5e8
+        stage3_prefetch_bucket_size: 5e8
+        stage3_param_persistence_threshold: 1e6
+
+# =============================================================================
+# Volume Definitions
+# =============================================================================
+volumes:
+  - name: "model-cache"
+    type: "persisted"
+    cloud_bucket_name: "medgemma-model-cache"
+    
+  - name: "training-data"
+    type: "persisted"
+    cloud_bucket_name: "medgemma-training-data"
+    
+  - name: "checkpoints"
+    type: "persisted"
+    cloud_bucket_name: "medgemma-checkpoints"
+
+# =============================================================================
+# Image Configuration
+# =============================================================================
+image:
+  base: "python:3.11-slim"
+  
+  # System packages
+  apt_packages:
+    - "git"
+    - "curl"
+    - "build-essential"
+    
+  # Python packages
+  pip_packages:
+    - "torch>=2.2.0"
+    - "transformers>=4.40.0"
+    - "accelerate>=0.28.0"
+    - "bitsandbytes>=0.42.0"
+    - "peft>=0.10.0"
+    - "datasets>=2.17.0"
+    - "deepspeed>=0.13.0"
+    - "ray[train,tune]==2.9.0"
+    - "mlflow>=2.10.0"
+    - "flash-attn>=2.5.0"
+    - "huggingface_hub>=0.20.0"
+    - "pillow>=10.0.0"
+    - "numpy>=1.26.0"
+    - "scipy>=1.12.0"
+    - "minio>=7.2.0"
+    
+  # Environment setup
+  env:
+    HF_HOME: "/root/.cache/huggingface"
+    TRANSFORMERS_CACHE: "/root/.cache/huggingface/transformers"
+
+# =============================================================================
+# Scheduling and Quotas
+# =============================================================================
+scheduling:
+  # Maximum concurrent training jobs
+  max_concurrent_training: 2
+  
+  # Maximum inference containers
+  max_inference_containers: 10
+  
+  # GPU reservation (ensure availability)
+  gpu_reservation:
+    enabled: true
+    min_h100_reserved: 8
+    
+  # Cost controls
+  cost_limits:
+    max_hourly_spend: 500.0  # USD
+    max_daily_spend: 5000.0  # USD
+    alert_threshold: 0.8
+
+# =============================================================================
+# Monitoring and Logging
+# =============================================================================
+monitoring:
+  # Metrics export
+  metrics:
+    enabled: true
+    interval_seconds: 60
+    
+  # Log streaming
+  logging:
+    level: "INFO"
+    stream_to_cloud: true
+    retention_days: 30
+    
+  # Health checks
+  health_checks:
+    enabled: true
+    interval_seconds: 30
+
+# =============================================================================
+# Webhooks and Notifications
+# =============================================================================
+webhooks:
+  training_completed:
+    enabled: true
+    url_env: "TRAINING_WEBHOOK_URL"
+    
+  training_failed:
+    enabled: true
+    url_env: "ALERT_WEBHOOK_URL"
+    
+  cost_alert:
+    enabled: true
+    url_env: "ALERT_WEBHOOK_URL"

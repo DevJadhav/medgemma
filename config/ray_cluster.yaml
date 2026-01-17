@@ -1,0 +1,255 @@
+# MedGemma Ray Cluster Configuration
+# Distributed training orchestration for MedGemma 4B IT and 27B IT models
+# 
+# This configuration supports:
+# - Local development clusters
+# - Modal cloud GPU deployment (8x H100 for training)
+# - Kubernetes deployment (production)
+
+cluster_name: medai-compass-training
+
+# =============================================================================
+# Provider Configuration
+# =============================================================================
+provider:
+  type: local  # Options: local, kubernetes, aws, gcp, modal
+  region: us-west-2
+  
+# =============================================================================
+# Head Node Configuration
+# =============================================================================
+head_node:
+  node_type: head
+  resources:
+    CPU: 8
+    memory: 32Gi
+  ray_start_params:
+    dashboard-host: "0.0.0.0"
+    dashboard-port: 8265
+    object-store-memory: 8000000000  # 8GB
+    
+# =============================================================================
+# Worker Node Configuration
+# =============================================================================
+worker_nodes:
+  min_workers: 0
+  max_workers: 8
+  node_type: worker
+  resources:
+    CPU: 16
+    memory: 64Gi
+    GPU: 1  # Per worker for inference
+  ray_start_params:
+    object-store-memory: 16000000000  # 16GB
+
+# =============================================================================
+# GPU Resource Configuration
+# =============================================================================
+resources:
+  GPU:
+    type: H100
+    count_per_node: 1  # For inference
+  CPU:
+    total: 96
+  memory:
+    total: 512Gi
+
+# Training-specific GPU allocation (via Modal)
+training_resources:
+  gpu_type: H100
+  gpu_count: 8  # 8x H100 for 27B training
+  gpu_memory_gb: 80  # Per GPU
+  total_memory_gb: 640  # 8 * 80GB
+
+# =============================================================================
+# Model Profiles
+# =============================================================================
+model_profiles:
+  medgemma_4b:
+    name: "MedGemma 4B IT"
+    hf_model_id: "google/medgemma-4b-it"
+    vram_requirement_gb: 8  # With 4-bit quantization
+    gpu_count: 1
+    training_gpu_count: 1  # Single GPU sufficient
+    batch_size: 4
+    max_sequence_length: 8192
+    supports_multimodal: true
+    quantization:
+      enabled: true
+      bits: 4
+      type: "nf4"
+    ray_resources:
+      num_gpus: 1
+      num_cpus: 4
+      memory: 32Gi
+      
+  medgemma_27b:
+    name: "MedGemma 27B IT"
+    hf_model_id: "google/medgemma-27b-it"
+    vram_requirement_gb: 60  # Full precision BF16
+    gpu_count: 8  # 8x H100 for full fine-tuning (training)
+    training_gpu_count: 8  # 8x H100 for full fine-tuning
+    batch_size: 1
+    max_sequence_length: 8192
+    supports_multimodal: true
+    quantization:
+      enabled: true  # For inference
+      bits: 4
+      type: "nf4"
+    distributed_strategy: "deepspeed_zero3"
+    ray_resources:
+      num_gpus: 8
+      num_cpus: 32
+      memory: 256Gi
+
+# =============================================================================
+# Ray Runtime Environment
+# =============================================================================
+runtime_env:
+  pip:
+    - torch>=2.2.0
+    - transformers>=4.40.0
+    - accelerate>=0.28.0
+    - bitsandbytes>=0.42.0
+    - peft>=0.10.0
+    - ray[train,tune]==2.9.0
+    - deepspeed>=0.13.0
+    - datasets>=2.17.0
+    - mlflow>=2.10.0
+  env_vars:
+    CUDA_VISIBLE_DEVICES: "all"
+    TRANSFORMERS_CACHE: "/data/model_cache"
+    HF_HOME: "/data/huggingface"
+    NCCL_DEBUG: "INFO"
+    NCCL_IB_DISABLE: "1"  # Disable InfiniBand for local testing
+
+# =============================================================================
+# Autoscaling Configuration
+# =============================================================================
+autoscaling:
+  enabled: true
+  target_utilization: 0.8
+  idle_timeout_minutes: 10
+  upscaling_speed: 1.0
+  downscaling_speed: 1.0
+  metrics:
+    - name: gpu_utilization
+      target: 0.8
+    - name: queue_length
+      target: 0
+
+# =============================================================================
+# Ray Train Configuration
+# =============================================================================
+train:
+  backend: "torch"
+  num_workers: 8  # For distributed training
+  use_gpu: true
+  resources_per_worker:
+    CPU: 4
+    GPU: 1
+  placement_strategy: "SPREAD"  # Distribute across nodes
+  
+  # Fault tolerance
+  failure_config:
+    max_failures: 3
+    fail_fast: false
+  
+  # Checkpointing
+  checkpoint_config:
+    num_to_keep: 3
+    checkpoint_score_attribute: "loss"
+    checkpoint_score_order: "min"
+    checkpoint_frequency: 100  # Steps between checkpoints
+    checkpoint_at_end: true
+
+# =============================================================================
+# Ray Tune Configuration (Hyperparameter Tuning)
+# =============================================================================
+tune:
+  num_samples: 10
+  max_concurrent_trials: 4
+  scheduler:
+    name: "ASHAScheduler"
+    max_t: 1000
+    grace_period: 100
+    reduction_factor: 2
+  search_alg:
+    name: "OptunaSearch"
+    metric: "loss"
+    mode: "min"
+  
+  # Hyperparameter search space
+  param_space:
+    learning_rate:
+      type: "loguniform"
+      lower: 1e-5
+      upper: 1e-3
+    lora_r:
+      type: "choice"
+      values: [8, 16, 32, 64]
+    lora_alpha:
+      type: "choice"
+      values: [16, 32, 64]
+    batch_size:
+      type: "choice"
+      values: [1, 2, 4]
+
+# =============================================================================
+# Ray Serve Configuration (Inference)
+# =============================================================================
+serve:
+  # Note: Ray Serve is optional - we primarily use vLLM/Triton for inference
+  # This is provided for Ray-native inference scenarios
+  enabled: false  
+  num_replicas: 1
+  max_concurrent_queries: 100
+  ray_actor_options:
+    num_gpus: 1
+    num_cpus: 4
+
+# =============================================================================
+# Monitoring and Observability
+# =============================================================================
+monitoring:
+  prometheus:
+    enabled: true
+    port: 8080
+  metrics:
+    - ray_tasks
+    - ray_actors
+    - object_store_memory
+    - gpu_utilization
+    - training_loss
+    - validation_metrics
+
+# =============================================================================
+# Storage Configuration
+# =============================================================================
+storage:
+  # Model checkpoints
+  checkpoint_path: "s3://medai-checkpoints/ray"
+  
+  # Training data
+  data_path: "s3://medai-data/training"
+  
+  # Logs
+  log_path: "s3://medai-logs/ray"
+  
+  # MinIO configuration
+  s3:
+    endpoint_url: "http://minio:9000"
+    access_key_env: "MINIO_ACCESS_KEY"
+    secret_key_env: "MINIO_SECRET_KEY"
+    use_ssl: false
+
+# =============================================================================
+# Network Configuration
+# =============================================================================
+network:
+  dashboard_port: 8265
+  client_port: 10001
+  gcs_server_port: 6379
+  object_manager_port: 8076
+  node_manager_port: 8077
+  runtime_env_agent_port: 8078

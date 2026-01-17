@@ -1,0 +1,281 @@
+# Training Configuration for MedGemma Fine-tuning
+# Ray Train orchestration with MLflow tracking
+#
+# Supports:
+# - Single-GPU training (4B model)
+# - Distributed training with DeepSpeed ZeRO-3 (27B model)
+
+# =============================================================================
+# General Training Settings
+# =============================================================================
+general:
+  seed: 42
+  output_dir: "/checkpoints"
+  logging_dir: "/logs"
+  save_strategy: "steps"
+  save_steps: 500
+  save_total_limit: 3
+  logging_steps: 10
+  eval_steps: 500
+  evaluation_strategy: "steps"
+  load_best_model_at_end: true
+  metric_for_best_model: "eval_loss"
+  greater_is_better: false
+  report_to:
+    - "mlflow"
+
+# =============================================================================
+# Ray Train Settings
+# =============================================================================
+ray:
+  # Basic settings
+  num_workers: 8  # For 27B model with 8x H100
+  use_gpu: true
+  
+  # Resources per worker
+  resources_per_worker:
+    CPU: 4
+    GPU: 1
+    
+  # Placement strategy
+  placement_strategy: "SPREAD"
+  
+  # Fault tolerance
+  max_failures: 3
+  fail_fast: false
+  
+  # Checkpointing
+  checkpoint_config:
+    num_to_keep: 3
+    checkpoint_score_attribute: "eval_loss"
+    checkpoint_score_order: "min"
+    checkpoint_frequency: 500
+    checkpoint_at_end: true
+    
+  # Scaling
+  scaling_config:
+    trainer_resources:
+      CPU: 4
+    resources_per_worker:
+      CPU: 4
+      GPU: 1
+
+# =============================================================================
+# Model-Specific Training Configurations
+# =============================================================================
+models:
+  medgemma_4b:
+    # Distributed strategy (single GPU sufficient)
+    distributed_strategy: "single_gpu"
+    num_workers: 1
+    
+    # Training hyperparameters
+    hyperparameters:
+      learning_rate: 2.0e-4
+      per_device_train_batch_size: 4
+      per_device_eval_batch_size: 4
+      gradient_accumulation_steps: 4
+      num_train_epochs: 3
+      max_steps: 10000
+      warmup_ratio: 0.1
+      weight_decay: 0.01
+      lr_scheduler_type: "cosine"
+      
+    # LoRA settings
+    lora:
+      r: 16
+      alpha: 32
+      dropout: 0.05
+      target_modules:
+        - "q_proj"
+        - "k_proj"
+        - "v_proj"
+        - "o_proj"
+        
+    # Optimization
+    optimization:
+      gradient_checkpointing: true
+      mixed_precision: "bf16"
+      optim: "adamw_torch"
+      
+  medgemma_27b:
+    # Distributed strategy (requires 8x H100)
+    distributed_strategy: "deepspeed_zero3"
+    num_workers: 8
+    
+    # Training hyperparameters
+    hyperparameters:
+      learning_rate: 1.0e-4
+      per_device_train_batch_size: 1
+      per_device_eval_batch_size: 1
+      gradient_accumulation_steps: 16
+      num_train_epochs: 3
+      max_steps: 10000
+      warmup_ratio: 0.1
+      weight_decay: 0.01
+      lr_scheduler_type: "cosine"
+      
+    # LoRA settings (larger for 27B)
+    lora:
+      r: 64
+      alpha: 128
+      dropout: 0.05
+      target_modules:
+        - "q_proj"
+        - "k_proj"
+        - "v_proj"
+        - "o_proj"
+        - "gate_proj"
+        - "up_proj"
+        - "down_proj"
+        
+    # Optimization
+    optimization:
+      gradient_checkpointing: true
+      mixed_precision: "bf16"
+      optim: "adamw_torch"
+
+# =============================================================================
+# DeepSpeed Configuration
+# =============================================================================
+deepspeed:
+  # ZeRO Stage 3 for 27B model
+  zero_optimization:
+    stage: 3
+    offload_optimizer:
+      device: "cpu"
+      pin_memory: true
+    offload_param:
+      device: "none"
+    overlap_comm: true
+    contiguous_gradients: true
+    reduce_bucket_size: 500000000
+    stage3_prefetch_bucket_size: 500000000
+    stage3_param_persistence_threshold: 1000000
+    sub_group_size: 1000000000
+    stage3_max_live_parameters: 1000000000
+    stage3_max_reuse_distance: 1000000000
+    
+  # Communication
+  communication_data_type: "bf16"
+  
+  # Precision
+  bf16:
+    enabled: true
+    
+  # Gradient settings
+  gradient_accumulation_steps: 16
+  gradient_clipping: 1.0
+  
+  # Training settings
+  train_micro_batch_size_per_gpu: 1
+  
+  # Activation checkpointing
+  activation_checkpointing:
+    partition_activations: true
+    cpu_checkpointing: false
+    contiguous_memory_optimization: true
+    synchronize_checkpoint_boundary: false
+    
+  # ZeRO++ optimizations (optional)
+  zero_hpz_partition_size: 8
+  zero_quantized_weights: false
+  zero_quantized_gradients: false
+
+# =============================================================================
+# Data Configuration
+# =============================================================================
+data:
+  # Training data paths
+  train_path: "s3://medai-data/training/train.jsonl"
+  eval_path: "s3://medai-data/training/eval.jsonl"
+  
+  # Data loading
+  dataloader_num_workers: 4
+  dataloader_pin_memory: true
+  
+  # Preprocessing
+  max_seq_length: 8192
+  padding: "max_length"
+  truncation: true
+  
+  # Streaming (for large datasets)
+  streaming: false
+  
+  # Ray Data settings
+  ray_data:
+    enabled: true
+    read_parallelism: 100
+    map_batches_parallelism: 20
+    prefetch_batches: 2
+
+# =============================================================================
+# MLflow Integration
+# =============================================================================
+mlflow:
+  tracking_uri: "${MLFLOW_TRACKING_URI:-http://mlflow:5000}"
+  experiment_name: "medgemma-finetuning"
+  
+  # Artifact logging
+  log_artifacts:
+    checkpoints: true
+    training_curves: true
+    model_card: true
+    
+  # Metrics to log
+  log_metrics:
+    - "train_loss"
+    - "eval_loss"
+    - "learning_rate"
+    - "epoch"
+    - "grad_norm"
+    - "throughput"
+    
+  # Parameters to log
+  log_params:
+    - "model_name"
+    - "learning_rate"
+    - "batch_size"
+    - "lora_r"
+    - "lora_alpha"
+    - "num_workers"
+    - "distributed_strategy"
+
+# =============================================================================
+# Monitoring and Callbacks
+# =============================================================================
+callbacks:
+  - name: "EarlyStoppingCallback"
+    params:
+      early_stopping_patience: 5
+      early_stopping_threshold: 0.001
+      
+  - name: "GradientAccumulationCallback"
+    params:
+      log_gradient_norm: true
+      
+  - name: "GPUMemoryCallback"
+    params:
+      log_interval: 100
+
+# =============================================================================
+# Evaluation Configuration
+# =============================================================================
+evaluation:
+  # Evaluation during training
+  eval_during_training: true
+  eval_steps: 500
+  
+  # Benchmarks to run after training
+  benchmarks:
+    - name: "MedQA"
+      num_samples: 1000
+    - name: "PubMedQA"
+      num_samples: 500
+      
+  # Metrics
+  metrics:
+    - "accuracy"
+    - "f1"
+    - "bleu"
+    - "rouge"

@@ -1,0 +1,239 @@
+# MLflow Configuration for MedGemma Training Pipeline
+# Experiment tracking, model registry, and artifact management
+#
+# Usage:
+#   - Development: PostgreSQL backend + MinIO artifacts
+#   - Production: PostgreSQL backend + S3 artifacts
+
+# =============================================================================
+# Server Configuration
+# =============================================================================
+server:
+  host: "0.0.0.0"
+  port: 5000
+  workers: 4
+  gunicorn_opts: "--timeout 120"
+  
+  # Authentication (production)
+  auth:
+    enabled: false  # Enable in production
+    type: "basic"  # Options: basic, oauth2
+
+# =============================================================================
+# Backend Store Configuration
+# =============================================================================
+backend_store:
+  type: postgresql
+  uri: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/mlflow"
+  
+  # Database connection pool
+  pool_size: 10
+  max_overflow: 20
+  pool_timeout: 30
+  pool_recycle: 1800
+  
+  # Migration settings
+  upgrade_db_on_startup: true
+
+# =============================================================================
+# Artifact Store Configuration
+# =============================================================================
+artifact_store:
+  type: s3
+  uri: "s3://mlflow-artifacts"
+  
+  # MinIO/S3 Configuration
+  s3:
+    endpoint_url: "http://${MINIO_ENDPOINT:-minio:9000}"
+    access_key_id_env: "MINIO_ACCESS_KEY"
+    secret_access_key_env: "MINIO_SECRET_KEY"
+    region: "us-east-1"
+    use_ssl: false
+    verify_ssl: false
+    
+  # Artifact settings
+  default_artifact_root: "s3://mlflow-artifacts/runs"
+  
+# =============================================================================
+# Model Registry Configuration
+# =============================================================================
+model_registry:
+  enabled: true
+  
+  # Stage transitions
+  stages:
+    - None
+    - Staging
+    - Production
+    - Archived
+  
+  # Automatic model promotion rules
+  promotion_rules:
+    staging_to_production:
+      min_accuracy: 0.75
+      max_hallucination_rate: 0.05
+      required_evaluations:
+        - medqa_accuracy
+        - pubmedqa_accuracy
+        - clinical_safety_score
+
+# =============================================================================
+# Experiments Configuration
+# =============================================================================
+experiments:
+  - name: "medgemma-4b-finetuning"
+    description: "Fine-tuning experiments for MedGemma 4B IT model"
+    tags:
+      model: "medgemma-4b-it"
+      task: "fine-tuning"
+      framework: "ray-train"
+    artifact_location: "s3://mlflow-artifacts/medgemma-4b"
+    
+  - name: "medgemma-27b-finetuning"
+    description: "Fine-tuning experiments for MedGemma 27B IT model"
+    tags:
+      model: "medgemma-27b-it"
+      task: "fine-tuning"
+      framework: "ray-train"
+    artifact_location: "s3://mlflow-artifacts/medgemma-27b"
+    
+  - name: "medgemma-hyperparameter-tuning"
+    description: "Hyperparameter optimization experiments"
+    tags:
+      task: "hp-tuning"
+      scheduler: "ASHA"
+    artifact_location: "s3://mlflow-artifacts/hp-tuning"
+    
+  - name: "medgemma-evaluation"
+    description: "Model evaluation and benchmarking"
+    tags:
+      task: "evaluation"
+      benchmarks:
+        - medqa
+        - pubmedqa
+        - medmcqa
+    artifact_location: "s3://mlflow-artifacts/evaluation"
+
+# =============================================================================
+# Tracking Configuration
+# =============================================================================
+tracking:
+  # Parameters to always log
+  default_params:
+    - model_name
+    - model_version
+    - learning_rate
+    - batch_size
+    - epochs
+    - lora_r
+    - lora_alpha
+    - optimizer
+    - scheduler
+    
+  # Metrics to track
+  metrics:
+    training:
+      - loss
+      - learning_rate
+      - grad_norm
+      - throughput_samples_per_sec
+      - gpu_memory_used_gb
+    validation:
+      - val_loss
+      - accuracy
+      - f1_score
+      - bleu_score
+    evaluation:
+      - medqa_accuracy
+      - pubmedqa_accuracy
+      - hallucination_rate
+      - latency_p50_ms
+      - latency_p95_ms
+      - latency_p99_ms
+
+  # Artifact logging
+  artifacts:
+    log_model_checkpoints: true
+    log_training_curves: true
+    log_confusion_matrices: true
+    log_attention_maps: false  # Large files
+    checkpoint_frequency: 500  # Log every N steps
+
+# =============================================================================
+# Auto-logging Configuration
+# =============================================================================
+autolog:
+  # PyTorch Lightning
+  pytorch:
+    enabled: true
+    log_models: true
+    log_every_n_step: 100
+    
+  # Transformers
+  transformers:
+    enabled: true
+    log_models: true
+    
+  # Ray
+  ray:
+    enabled: true
+    log_models: true
+
+# =============================================================================
+# Runs Configuration
+# =============================================================================
+runs:
+  # Run naming convention
+  naming:
+    format: "{model}_{timestamp}_{short_hash}"
+    
+  # Retention policy
+  retention:
+    max_runs_per_experiment: 100
+    delete_after_days: 90
+    keep_production_models: true
+    
+  # Tags applied to all runs
+  default_tags:
+    project: "medai-compass"
+    framework: "medgemma"
+
+# =============================================================================
+# Integration Configuration
+# =============================================================================
+integrations:
+  # Ray Train/Tune integration
+  ray:
+    enabled: true
+    sync_artifacts: true
+    
+  # Prometheus metrics export
+  prometheus:
+    enabled: true
+    port: 5001
+    
+  # Grafana dashboards
+  grafana:
+    enabled: true
+    dashboard_ids:
+      - training_overview
+      - model_comparison
+      - resource_utilization
+
+# =============================================================================
+# Security Configuration
+# =============================================================================
+security:
+  # HIPAA compliance
+  audit_logging:
+    enabled: true
+    log_level: INFO
+    
+  # Data encryption
+  encryption:
+    artifacts_at_rest: true
+    
+  # Access control
+  permissions:
+    default: "read"
+    experiment_owners: "manage"

@@ -1,0 +1,246 @@
+# MedGemma Models Configuration
+# Central configuration for model selection, training, and inference
+#
+# Supports:
+# - MedGemma 4B IT: Efficient model for single-GPU inference and training
+# - MedGemma 27B IT: Large model requiring distributed training (8x H100)
+
+# =============================================================================
+# Model Definitions
+# =============================================================================
+models:
+  medgemma_4b_it:
+    # Model identification
+    hf_model_id: "google/medgemma-4b-it"
+    display_name: "MedGemma 4B Instruct-Tuned"
+    version: "1.0"
+    
+    # Model characteristics
+    parameters: 4_000_000_000  # 4B
+    architecture: "gemma"
+    context_length: 128000
+    vocab_size: 256000
+    
+    # Resource requirements
+    vram_requirement_gb: 8  # With 4-bit quantization
+    vram_full_precision_gb: 16
+    recommended_gpu: "A100-40GB"
+    min_gpu: "A10-24GB"
+    
+    # Capabilities
+    capabilities:
+      text_generation: true
+      image_understanding: true
+      medical_qa: true
+      clinical_reasoning: true
+      
+    # Inference configuration
+    inference:
+      gpu_count: 1  # Single GPU with quantization
+      dtype: "bfloat16"
+      quantization:
+        enabled: true
+        bits: 4
+        type: "nf4"
+        compute_dtype: "bfloat16"
+      max_batch_size: 8
+      max_new_tokens: 2048
+      temperature_default: 0.1
+      top_p_default: 0.9
+      
+    # Training configuration
+    training:
+      batch_size: 4
+      learning_rate: 2.0e-4
+      weight_decay: 0.01
+      warmup_ratio: 0.1
+      lr_scheduler: "cosine"
+      max_grad_norm: 1.0
+      
+      # LoRA configuration
+      lora_r: 16
+      lora_alpha: 32
+      lora_dropout: 0.05
+      lora_target_modules:
+        - "q_proj"
+        - "k_proj"
+        - "v_proj"
+        - "o_proj"
+        - "gate_proj"
+        - "up_proj"
+        - "down_proj"
+      
+      # Optimization
+      gradient_checkpointing: true
+      gradient_accumulation_steps: 4
+      mixed_precision: "bf16"
+      
+      # Distributed (single GPU sufficient)
+      distributed_strategy: "single_gpu"
+      gpu_count: 1
+
+  medgemma_27b_it:
+    # Model identification
+    hf_model_id: "google/medgemma-27b-it"
+    display_name: "MedGemma 27B Instruct-Tuned"
+    version: "1.0"
+    
+    # Model characteristics
+    parameters: 27_000_000_000  # 27B
+    architecture: "gemma"
+    context_length: 128000
+    vocab_size: 256000
+    
+    # Resource requirements
+    vram_requirement_gb: 60  # Full precision BF16
+    vram_full_precision_gb: 108  # FP32
+    recommended_gpu: "H100-80GB"
+    min_gpu: "A100-80GB"
+    training_gpu_cluster: "8xH100"
+    
+    # Capabilities (enhanced over 4B)
+    capabilities:
+      text_generation: true
+      image_understanding: true
+      medical_qa: true
+      clinical_reasoning: true
+      complex_diagnosis: true
+      research_synthesis: true
+      
+    # Inference configuration
+    inference:
+      gpu_count: 1  # Single H100 for inference with quantization
+      dtype: "bfloat16"
+      quantization:
+        enabled: true
+        bits: 4
+        type: "nf4"
+        compute_dtype: "bfloat16"
+      max_batch_size: 2
+      max_new_tokens: 4096
+      temperature_default: 0.1
+      top_p_default: 0.9
+      
+    # Training configuration
+    training:
+      batch_size: 1
+      learning_rate: 1.0e-4
+      weight_decay: 0.01
+      warmup_ratio: 0.1
+      lr_scheduler: "cosine"
+      max_grad_norm: 1.0
+      
+      # LoRA configuration (larger for 27B)
+      lora_r: 64
+      lora_alpha: 128
+      lora_dropout: 0.05
+      lora_target_modules:
+        - "q_proj"
+        - "k_proj"
+        - "v_proj"
+        - "o_proj"
+        - "gate_proj"
+        - "up_proj"
+        - "down_proj"
+      
+      # Optimization
+      gradient_checkpointing: true
+      gradient_accumulation_steps: 16
+      mixed_precision: "bf16"
+      
+      # Distributed training (requires 8x H100)
+      distributed_strategy: "deepspeed_zero3"
+      gpu_count: 8
+      
+      # DeepSpeed ZeRO-3 configuration
+      deepspeed_config:
+        zero_optimization:
+          stage: 3
+          offload_optimizer:
+            device: "cpu"
+            pin_memory: true
+          offload_param:
+            device: "none"
+          overlap_comm: true
+          contiguous_gradients: true
+          reduce_bucket_size: 500000000
+          stage3_prefetch_bucket_size: 500000000
+          stage3_param_persistence_threshold: 1000000
+          sub_group_size: 1000000000
+          stage3_max_live_parameters: 1000000000
+          stage3_max_reuse_distance: 1000000000
+        bf16:
+          enabled: true
+        train_micro_batch_size_per_gpu: 1
+        gradient_accumulation_steps: 16
+        gradient_clipping: 1.0
+
+# =============================================================================
+# Model Selection Settings
+# =============================================================================
+selection:
+  # Default model for different use cases
+  defaults:
+    inference: "medgemma_4b_it"
+    training: "medgemma_4b_it"
+    evaluation: "medgemma_27b_it"
+    
+  # Model aliases for CLI
+  aliases:
+    "medgemma-4b": "medgemma_4b_it"
+    "4b": "medgemma_4b_it"
+    "small": "medgemma_4b_it"
+    "medgemma-27b": "medgemma_27b_it"
+    "27b": "medgemma_27b_it"
+    "large": "medgemma_27b_it"
+
+# =============================================================================
+# Evaluation Benchmarks
+# =============================================================================
+evaluation:
+  benchmarks:
+    - name: "MedQA-USMLE"
+      dataset: "bigbio/med_qa"
+      subset: "med_qa_en_4options"
+      metric: "accuracy"
+      target: 0.75
+      
+    - name: "PubMedQA"
+      dataset: "bigbio/pubmed_qa"
+      subset: "pubmed_qa_labeled"
+      metric: "accuracy"
+      target: 0.70
+      
+    - name: "MedMCQA"
+      dataset: "medmcqa"
+      metric: "accuracy"
+      target: 0.60
+      
+  # Quality thresholds
+  thresholds:
+    min_accuracy: 0.70
+    max_hallucination_rate: 0.05
+    max_latency_p95_ms: 500
+    
+# =============================================================================
+# Serving Configuration
+# =============================================================================
+serving:
+  # vLLM settings (primary inference server)
+  vllm:
+    enabled: true
+    tensor_parallel_size: 1
+    gpu_memory_utilization: 0.9
+    max_num_seqs: 256
+    max_num_batched_tokens: 8192
+    
+  # Triton settings (alternative)
+  triton:
+    enabled: true
+    max_batch_size: 4
+    instance_count: 1
+    
+  # Modal settings (cloud GPU)
+  modal:
+    enabled: true
+    prefer_for_inference: true  # Use Modal when no local GPU
