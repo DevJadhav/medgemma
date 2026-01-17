@@ -63,10 +63,11 @@ class HumanEscalationGateway:
         r"suicid",
         r"self[- ]?harm",
         r"kill\s+(myself|me)",
-        r"end\s+(my|it)\s+life",
+        r"end(ing)?\s+(my|it|the)\s+life",
         r"want\s+to\s+die",
         r"hurt(ing)?\s+(myself|me)",
         r"overdose",
+        r"hopeless",
     ]
     
     # Domain-specific confidence thresholds

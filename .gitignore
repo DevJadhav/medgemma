@@ -206,3 +206,7 @@ secrets/
 # Grafana/Prometheus data (mounted volumes)
 grafana-data/
 prometheus-data/
+
+# Documentation drafts
+medgemma_implementation_plan.md
+/docs/competition

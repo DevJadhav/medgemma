@@ -1,9 +1,61 @@
 # MedAI Compass - Production Docker Compose
 # HIPAA-compliant multi-service deployment
-
-version: '3.9'
+# 
+# Usage:
+#   docker-compose up -d                    # Core services
+#   docker-compose --profile gpu up -d      # With GPU inference
+#   docker-compose --profile logging up -d  # With ELK logging
+#   docker-compose --profile all up -d      # Everything
 
 services:
+  # =========================================================================
+  # Nginx Reverse Proxy (TLS Termination)
+  # =========================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: medai-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+      - certbot-data:/var/www/certbot:ro
+    depends_on:
+      - api
+      - frontend
+    networks:
+      - medai-network
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # =========================================================================
+  # Frontend (Next.js)
+  # =========================================================================
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        - API_URL=http://api:8000
+    container_name: medai-frontend
+    restart: unless-stopped
+    environment:
+      - API_URL=http://api:8000
+      - NODE_ENV=production
+    depends_on:
+      - api
+    networks:
+      - medai-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # =========================================================================
   # API Server
   # =========================================================================
@@ -30,8 +82,13 @@ services:
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
       - HF_TOKEN=${HF_TOKEN}
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
       - JWT_SECRET=${JWT_SECRET}
       - PHI_ENCRYPTION_KEY=${PHI_ENCRYPTION_KEY}
+      # Modal GPU configuration (default for macOS/no local GPU)
+      - MODAL_TOKEN_ID=${MODAL_TOKEN_ID}
+      - MODAL_TOKEN_SECRET=${MODAL_TOKEN_SECRET}
+      - PREFER_MODAL_GPU=${PREFER_MODAL_GPU:-true}
     depends_on:
       postgres:
         condition: service_healthy
@@ -39,6 +96,8 @@ services:
         condition: service_healthy
     networks:
       - medai-network
+    volumes:
+      - ./data:/data:ro
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
       interval: 30s
@@ -220,6 +279,157 @@ services:
     depends_on:
       - prometheus
 
+  # =========================================================================
+  # Elasticsearch (Log Aggregation)
+  # =========================================================================
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: medai-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "${ELASTICSEARCH_PORT:-9200}:9200"
+    networks:
+      - medai-network
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    profiles:
+      - logging
+
+  # =========================================================================
+  # Kibana (Log Visualization)
+  # =========================================================================
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: medai-kibana
+    restart: unless-stopped
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "${KIBANA_PORT:-5601}:5601"
+    networks:
+      - medai-network
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    profiles:
+      - logging
+
+  # =========================================================================
+  # Celery Worker (Data Ingestion)
+  # =========================================================================
+  celery-worker:
+    build:
+      context: .
+      target: production
+    container_name: medai-celery-worker
+    restart: unless-stopped
+    command: celery -A medai_compass.workers.celery worker -l info -Q ingestion,downloads -c 4
+    environment:
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-medai_compass}
+      - POSTGRES_USER=${POSTGRES_USER:-medai}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - PHYSIONET_USERNAME=${PHYSIONET_USERNAME}
+      - PHYSIONET_PASSWORD=${PHYSIONET_PASSWORD}
+    depends_on:
+      - redis
+      - postgres
+      - minio
+    networks:
+      - medai-network
+    volumes:
+      - ./data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  # =========================================================================
+  # Celery Beat (Scheduled Tasks)
+  # =========================================================================
+  celery-beat:
+    build:
+      context: .
+      target: production
+    container_name: medai-celery-beat
+    restart: unless-stopped
+    command: celery -A medai_compass.workers.celery beat -l info
+    environment:
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+    depends_on:
+      - redis
+    networks:
+      - medai-network
+
+  # =========================================================================
+  # Flower (Celery Monitoring)
+  # =========================================================================
+  flower:
+    image: mher/flower:latest
+    container_name: medai-flower
+    restart: unless-stopped
+    command: celery --broker=redis://:${REDIS_PASSWORD}@redis:6379/0 flower --port=5555
+    ports:
+      - "${FLOWER_PORT:-5555}:5555"
+    depends_on:
+      - redis
+    networks:
+      - medai-network
+    profiles:
+      - monitoring
+
+  # =========================================================================
+  # Postgres Exporter (Prometheus Metrics)
+  # =========================================================================
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: medai-postgres-exporter
+    restart: unless-stopped
+    environment:
+      - DATA_SOURCE_NAME=postgresql://${POSTGRES_USER:-medai}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-medai_compass}?sslmode=disable
+    depends_on:
+      - postgres
+    networks:
+      - medai-network
+    profiles:
+      - monitoring
+
+  # =========================================================================
+  # Redis Exporter (Prometheus Metrics)
+  # =========================================================================
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: medai-redis-exporter
+    restart: unless-stopped
+    environment:
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    depends_on:
+      - redis
+    networks:
+      - medai-network
+    profiles:
+      - monitoring
+
 # =============================================================================
 # Networks
 # =============================================================================
@@ -240,3 +450,6 @@ volumes:
   model-cache:
   prometheus-data:
   grafana-data:
+  elasticsearch-data:
+  certbot-data:
+  data-volume:

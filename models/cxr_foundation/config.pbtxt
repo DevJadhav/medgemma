@@ -1,0 +1,135 @@
+# CXR Foundation Triton Configuration
+# Chest X-ray analysis model
+
+name: "cxr_foundation"
+platform: "pytorch_libtorch"
+max_batch_size: 16
+
+# Model versioning
+version_policy: { latest: { num_versions: 2 }}
+
+# Input configuration - chest X-ray images
+input [
+  {
+    name: "image"
+    data_type: TYPE_FP32
+    dims: [ 3, 224, 224 ]  # CHW format
+    format: FORMAT_NCHW
+  }
+]
+
+# Output configuration
+output [
+  {
+    name: "embeddings"
+    data_type: TYPE_FP32
+    dims: [ 512 ]  # CXR-specific embedding dimension
+  },
+  {
+    name: "findings"
+    data_type: TYPE_FP32
+    dims: [ 14 ]  # 14 common CXR findings (NIH labels)
+  },
+  {
+    name: "abnormality_score"
+    data_type: TYPE_FP32
+    dims: [ 1 ]  # Overall abnormality probability
+  }
+]
+
+# Dynamic batching optimized for CXR workflow
+dynamic_batching {
+  preferred_batch_size: [ 1, 4, 8, 16 ]
+  max_queue_delay_microseconds: 30000  # 30ms - low latency for clinical use
+  preserve_ordering: true
+}
+
+# GPU instance configuration
+instance_group [
+  {
+    count: 1
+    kind: KIND_GPU
+    gpus: [ 0 ]
+  }
+]
+
+# Model parameters
+parameters {
+  key: "model_path"
+  value: { string_value: "/models/cxr_foundation/1/model" }
+}
+
+parameters {
+  key: "device"
+  value: { string_value: "cuda:0" }
+}
+
+parameters {
+  key: "finding_labels"
+  value: { 
+    string_value: "Atelectasis,Cardiomegaly,Effusion,Infiltration,Mass,Nodule,Pneumonia,Pneumothorax,Consolidation,Edema,Emphysema,Fibrosis,Pleural_Thickening,Hernia"
+  }
+}
+
+# Optimization settings
+optimization {
+  execution_accelerators {
+    gpu_execution_accelerator [
+      {
+        name: "tensorrt"
+        parameters { key: "precision_mode" value: "FP16" }
+        parameters { key: "max_workspace_size_bytes" value: "1073741824" }
+      }
+    ]
+  }
+  
+  input_pinned_memory { enable: true }
+  output_pinned_memory { enable: true }
+  
+  cuda {
+    graphs: true
+    busy_wait_events: true
+  }
+}
+
+# Model warmup with typical batch sizes
+model_warmup [
+  {
+    name: "warmup_single"
+    batch_size: 1
+    inputs {
+      key: "image"
+      value: {
+        data_type: TYPE_FP32
+        dims: [ 3, 224, 224 ]
+        random_data: true
+      }
+    }
+  },
+  {
+    name: "warmup_batch"
+    batch_size: 4
+    inputs {
+      key: "image"
+      value: {
+        data_type: TYPE_FP32
+        dims: [ 3, 224, 224 ]
+        random_data: true
+      }
+    }
+  }
+]
+
+# Response cache disabled for HIPAA
+response_cache { enable: false }
+
+# Custom metrics for monitoring
+metrics [
+  {
+    name: "cxr_abnormality_rate"
+    kind: KIND_GAUGE
+    labels [
+      { key: "model" value: "cxr_foundation" }
+    ]
+  }
+]

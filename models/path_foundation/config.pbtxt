@@ -1,0 +1,101 @@
+# Path Foundation Triton Configuration
+# Pathology slide analysis model
+
+name: "path_foundation"
+platform: "pytorch_libtorch"
+max_batch_size: 8
+
+# Model versioning
+version_policy: { latest: { num_versions: 2 }}
+
+# Input configuration - pathology image patches
+input [
+  {
+    name: "image"
+    data_type: TYPE_FP32
+    dims: [ 3, 224, 224 ]  # CHW format for single image
+    format: FORMAT_NCHW
+  }
+]
+
+# Output configuration - embeddings and classification
+output [
+  {
+    name: "embeddings"
+    data_type: TYPE_FP32
+    dims: [ 768 ]  # Feature embedding dimension
+  },
+  {
+    name: "logits"
+    data_type: TYPE_FP32
+    dims: [ -1 ]  # Variable number of classes
+  }
+]
+
+# Dynamic batching for throughput
+dynamic_batching {
+  preferred_batch_size: [ 1, 4, 8 ]
+  max_queue_delay_microseconds: 50000  # 50ms
+  preserve_ordering: false  # Order not critical for embeddings
+}
+
+# GPU instance configuration
+instance_group [
+  {
+    count: 1
+    kind: KIND_GPU
+    gpus: [ 0 ]
+  }
+]
+
+# Model parameters
+parameters {
+  key: "model_path"
+  value: { string_value: "/models/path_foundation/1/model" }
+}
+
+parameters {
+  key: "device"
+  value: { string_value: "cuda:0" }
+}
+
+# Optimization settings
+optimization {
+  execution_accelerators {
+    gpu_execution_accelerator [
+      {
+        name: "tensorrt"
+        parameters { key: "precision_mode" value: "FP16" }
+        parameters { key: "max_workspace_size_bytes" value: "1073741824" }  # 1GB
+      }
+    ]
+  }
+  
+  input_pinned_memory { enable: true }
+  output_pinned_memory { enable: true }
+  
+  # Enable CUDA graphs for consistent inference
+  cuda {
+    graphs: true
+    busy_wait_events: true
+  }
+}
+
+# Model warmup
+model_warmup [
+  {
+    name: "warmup_pathology"
+    batch_size: 1
+    inputs {
+      key: "image"
+      value: {
+        data_type: TYPE_FP32
+        dims: [ 3, 224, 224 ]
+        random_data: true
+      }
+    }
+  }
+]
+
+# Response cache disabled for HIPAA
+response_cache { enable: false }

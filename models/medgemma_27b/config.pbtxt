@@ -1,0 +1,169 @@
+# MedGemma 27B Triton Configuration
+# Clinical documentation generation model
+
+name: "medgemma_27b"
+platform: "vllm"
+max_batch_size: 2  # Smaller batch due to model size
+
+# Model versioning
+version_policy: { latest: { num_versions: 2 }}
+
+# Input configuration
+input [
+  {
+    name: "text_input"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+  },
+  {
+    name: "system_prompt"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
+    optional: true
+  },
+  {
+    name: "max_tokens"
+    data_type: TYPE_INT32
+    dims: [ 1 ]
+    optional: true
+  },
+  {
+    name: "temperature"
+    data_type: TYPE_FP32
+    dims: [ 1 ]
+    optional: true
+  }
+]
+
+# Output configuration
+output [
+  {
+    name: "text_output"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+  },
+  {
+    name: "finish_reason"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
+  },
+  {
+    name: "usage"
+    data_type: TYPE_INT32
+    dims: [ 2 ]  # [prompt_tokens, completion_tokens]
+  }
+]
+
+# Dynamic batching with longer queue time for large model
+dynamic_batching {
+  preferred_batch_size: [ 1, 2 ]
+  max_queue_delay_microseconds: 500000  # 500ms max wait
+  preserve_ordering: true
+  priority_levels: 2
+  default_priority_level: 1
+}
+
+# GPU instance configuration
+# Optimized for H100 80GB or A100 80GB
+instance_group [
+  {
+    count: 1
+    kind: KIND_GPU
+    gpus: [ 0 ]
+  }
+]
+
+# Model parameters
+parameters {
+  key: "model_path"
+  value: { string_value: "/models/medgemma_27b/1/model" }
+}
+
+parameters {
+  key: "dtype"
+  value: { string_value: "bfloat16" }
+}
+
+parameters {
+  key: "quantization"
+  value: { string_value: "awq" }  # Use AWQ quantization for 27B
+}
+
+parameters {
+  key: "tensor_parallel_size"
+  value: { string_value: "1" }  # Increase for multi-GPU
+}
+
+parameters {
+  key: "gpu_memory_utilization"
+  value: { string_value: "0.90" }
+}
+
+parameters {
+  key: "max_model_len"
+  value: { string_value: "4096" }  # Reduced for memory
+}
+
+parameters {
+  key: "trust_remote_code"
+  value: { string_value: "true" }
+}
+
+parameters {
+  key: "enforce_eager"
+  value: { string_value: "true" }  # Disable CUDA graphs for stability
+}
+
+# Optimization settings
+optimization {
+  execution_accelerators {
+    gpu_execution_accelerator [
+      {
+        name: "tensorrt"
+        parameters { key: "precision_mode" value: "FP16" }
+        parameters { key: "max_workspace_size_bytes" value: "8589934592" }  # 8GB
+      }
+    ]
+  }
+  
+  input_pinned_memory { enable: true }
+  output_pinned_memory { enable: true }
+}
+
+# Model warmup with representative documentation task
+model_warmup [
+  {
+    name: "warmup_documentation"
+    count: 1
+    inputs {
+      key: "text_input"
+      value: {
+        data_type: TYPE_STRING
+        dims: [ 1 ]
+        string_data: "Generate a brief clinical progress note."
+      }
+    }
+    inputs {
+      key: "max_tokens"
+      value: {
+        data_type: TYPE_INT32
+        dims: [ 1 ]
+        int32_data: [ 256 ]
+      }
+    }
+  }
+]
+
+# Response cache disabled for HIPAA compliance
+response_cache { enable: false }
+
+# Rate limiting for resource protection
+rate_limiter {
+  resources [
+    {
+      name: "gpu_inference_slots"
+      global: true
+      count: 2
+    }
+  ]
+}

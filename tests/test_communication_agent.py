@@ -397,3 +397,254 @@ class TestMessageCategory:
         assert MessageCategory.SYMPTOM_REPORT.value == "symptom_report"
         assert MessageCategory.MEDICATION_QUESTION.value == "medication_question"
         assert MessageCategory.EMERGENCY.value == "emergency"
+
+
+class TestConversationManager:
+    """Tests for ConversationManager class."""
+
+    def test_init(self):
+        """Test conversation manager initialization."""
+        from medai_compass.agents.communication.agents import ConversationManager
+
+        manager = ConversationManager(max_history_length=50)
+
+        assert manager.max_history_length == 50
+        assert len(manager.conversations) == 0
+
+    @pytest.mark.asyncio
+    async def test_create_session(self):
+        """Test creating a new conversation session."""
+        from medai_compass.agents.communication.agents import ConversationManager
+
+        manager = ConversationManager(use_persistence=False)
+        context = await manager.create_session(
+            patient_id="pat-001",
+            patient_context={
+                "conditions": ["diabetes", "hypertension"],
+                "medications": ["metformin", "lisinopril"]
+            }
+        )
+
+        assert context.patient_id == "pat-001"
+        assert "diabetes" in context.active_conditions
+        assert "metformin" in context.current_medications
+        assert context.session_id.startswith("conv-pat-001-")
+
+    @pytest.mark.asyncio
+    async def test_add_message(self):
+        """Test adding messages to conversation history."""
+        from medai_compass.agents.communication.agents import ConversationManager
+
+        manager = ConversationManager(use_persistence=False)
+        await manager.create_session("pat-001")
+
+        success = await manager.add_message(
+            patient_id="pat-001",
+            role="patient",
+            content="I have a question about my medication."
+        )
+
+        assert success is True
+
+        context = await manager.get_session("pat-001")
+        assert len(context.messages) == 1
+        assert context.messages[0]["role"] == "patient"
+
+    @pytest.mark.asyncio
+    async def test_add_message_no_session(self):
+        """Test adding message without a session returns False."""
+        from medai_compass.agents.communication.agents import ConversationManager
+
+        manager = ConversationManager(use_persistence=False)
+        success = await manager.add_message(
+            patient_id="nonexistent",
+            role="patient",
+            content="Test"
+        )
+
+        assert success is False
+
+    @pytest.mark.asyncio
+    async def test_max_history_length_enforcement(self):
+        """Test that history is trimmed when max length exceeded."""
+        from medai_compass.agents.communication.agents import ConversationManager
+
+        manager = ConversationManager(max_history_length=5, use_persistence=False)
+        await manager.create_session("pat-001")
+
+        # Add 7 messages
+        for i in range(7):
+            await manager.add_message("pat-001", "patient", f"Message {i}")
+
+        context = await manager.get_session("pat-001")
+        assert len(context.messages) == 5  # Should be trimmed
+        assert "Message 2" in context.messages[0]["content"]  # First message should be removed
+
+    @pytest.mark.asyncio
+    async def test_get_context_for_prompt(self):
+        """Test generating context string for prompts."""
+        from medai_compass.agents.communication.agents import ConversationManager
+
+        manager = ConversationManager(use_persistence=False)
+        await manager.create_session(
+            "pat-001",
+            patient_context={
+                "conditions": ["diabetes"],
+                "medications": ["metformin"]
+            }
+        )
+        await manager.add_message("pat-001", "patient", "I have a question.")
+        await manager.add_message("pat-001", "agent", "How can I help?")
+
+        context_str = manager.get_context_for_prompt("pat-001", max_messages=5)
+
+        assert "diabetes" in context_str
+        assert "metformin" in context_str
+        assert "patient:" in context_str.lower()
+        assert "agent:" in context_str.lower()
+
+    @pytest.mark.asyncio
+    async def test_end_session(self):
+        """Test ending a session."""
+        from medai_compass.agents.communication.agents import ConversationManager
+
+        manager = ConversationManager(use_persistence=False)
+        await manager.create_session("pat-001")
+        await manager.add_message("pat-001", "patient", "Test")
+
+        final_state = await manager.end_session("pat-001")
+
+        assert final_state is not None
+        assert final_state["patient_id"] == "pat-001"
+        assert final_state["message_count"] == 1
+        assert await manager.get_session("pat-001") is None
+
+    @pytest.mark.asyncio
+    async def test_end_session_nonexistent(self):
+        """Test ending nonexistent session returns None."""
+        from medai_compass.agents.communication.agents import ConversationManager
+
+        manager = ConversationManager(use_persistence=False)
+        result = await manager.end_session("nonexistent")
+
+        assert result is None
+
+
+class TestConversationSummary:
+    """Tests for conversation summary functionality."""
+    
+    def test_get_conversation_summary(self):
+        """Test getting conversation summary."""
+        orch = CommunicationOrchestrator()
+        
+        msg1 = PatientMessage(
+            message_id="msg-001",
+            patient_id="pat-001",
+            content="I need to schedule an appointment"
+        )
+        msg2 = PatientMessage(
+            message_id="msg-002",
+            patient_id="pat-001",
+            content="Also, question about my medication"
+        )
+        
+        orch.process_message(msg1)
+        orch.process_message(msg2)
+        
+        summary = orch.get_conversation_summary("pat-001")
+        
+        assert summary["patient_id"] == "pat-001"
+        assert summary["total_messages"] == 4
+        assert summary["patient_messages"] == 2
+        assert "appointment" in summary["topics_discussed"] or "medication" in summary["topics_discussed"]
+    
+    def test_clear_conversation(self):
+        """Test clearing conversation history."""
+        orch = CommunicationOrchestrator()
+        
+        msg = PatientMessage(
+            message_id="msg-001",
+            patient_id="pat-001",
+            content="Hello"
+        )
+        orch.process_message(msg)
+        
+        # Verify conversation exists
+        assert len(orch.get_conversation_history("pat-001")) > 0
+        
+        # Clear it
+        result = orch.clear_conversation("pat-001")
+        
+        assert result is True
+        assert orch.get_conversation_history("pat-001") == []
+    
+    def test_export_conversation(self):
+        """Test exporting conversation data."""
+        orch = CommunicationOrchestrator()
+        
+        msg = PatientMessage(
+            message_id="msg-001",
+            patient_id="pat-001",
+            content="Test message"
+        )
+        orch.process_message(msg, patient_context={
+            "conditions": ["diabetes"],
+            "medications": ["metformin"]
+        })
+        
+        export = orch.export_conversation("pat-001")
+        
+        assert export["patient_id"] == "pat-001"
+        assert "messages" in export
+        assert "exported_at" in export
+        assert export["active_conditions"] == ["diabetes"]
+
+
+class TestMultiLanguageSupport:
+    """Tests for multi-language support."""
+    
+    def test_detect_english(self):
+        """Test detecting English language."""
+        from medai_compass.agents.communication.agents import MultiLanguageSupport
+        
+        support = MultiLanguageSupport()
+        lang = support.detect_language("I have a headache")
+        
+        assert lang == "en"
+    
+    def test_detect_spanish(self):
+        """Test detecting Spanish language."""
+        from medai_compass.agents.communication.agents import MultiLanguageSupport
+        
+        support = MultiLanguageSupport()
+        lang = support.detect_language("Hola, tengo dolor de cabeza")
+        
+        assert lang == "es"
+    
+    def test_get_phrase_english(self):
+        """Test getting phrase in English."""
+        from medai_compass.agents.communication.agents import MultiLanguageSupport
+        
+        support = MultiLanguageSupport()
+        phrase = support.get_phrase("disclaimer", "en")
+        
+        assert "educational purposes" in phrase
+    
+    def test_get_phrase_spanish(self):
+        """Test getting phrase in Spanish."""
+        from medai_compass.agents.communication.agents import MultiLanguageSupport
+        
+        support = MultiLanguageSupport()
+        phrase = support.get_phrase("disclaimer", "es")
+        
+        assert "educativos" in phrase
+    
+    def test_is_language_supported(self):
+        """Test checking language support."""
+        from medai_compass.agents.communication.agents import MultiLanguageSupport
+        
+        support = MultiLanguageSupport()
+        
+        assert support.is_language_supported("en") is True
+        assert support.is_language_supported("es") is True
+        assert support.is_language_supported("xx") is False

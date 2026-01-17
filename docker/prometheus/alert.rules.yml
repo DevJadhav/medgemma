@@ -1,0 +1,179 @@
+groups:
+  - name: medai_api_alerts
+    rules:
+      # High Error Rate
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(medai_requests_total{status=~"5.."}[5m])) 
+          / sum(rate(medai_requests_total[5m])) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+
+      # High Latency
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95, rate(medai_request_latency_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API latency"
+          description: "P95 latency is {{ $value | humanize }}s over the last 5 minutes"
+
+      # Very High Latency (Critical)
+      - alert: CriticalLatency
+        expr: |
+          histogram_quantile(0.95, rate(medai_request_latency_seconds_bucket[5m])) > 5
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical API latency"
+          description: "P95 latency is {{ $value | humanize }}s - immediate attention required"
+
+      # Service Down
+      - alert: APIServiceDown
+        expr: up{job="medai-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MedAI API service is down"
+          description: "The API service has been unreachable for more than 1 minute"
+
+  - name: medai_agent_alerts
+    rules:
+      # Agent Error Rate
+      - alert: AgentHighErrorRate
+        expr: |
+          sum(rate(medai_agent_calls_total{status="error"}[5m])) by (agent_type)
+          / sum(rate(medai_agent_calls_total[5m])) by (agent_type) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate for {{ $labels.agent_type }} agent"
+          description: "{{ $labels.agent_type }} agent error rate is {{ $value | humanizePercentage }}"
+
+      # Agent Slow Processing
+      - alert: AgentSlowProcessing
+        expr: |
+          histogram_quantile(0.95, rate(medai_agent_latency_seconds_bucket[5m])) by (agent_type) > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.agent_type }} agent processing slowly"
+          description: "P95 processing time is {{ $value | humanize }}s"
+
+      # Diagnostic Agent Critical - for medical safety
+      - alert: DiagnosticAgentDown
+        expr: |
+          sum(rate(medai_agent_calls_total{agent_type="diagnostic"}[5m])) == 0
+          and sum(rate(medai_requests_total[5m])) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Diagnostic agent not processing requests"
+          description: "The diagnostic agent has not processed any requests in 5 minutes while API is active"
+
+  - name: medai_clinical_alerts
+    rules:
+      # High Escalation Rate
+      - alert: HighEscalationRate
+        expr: |
+          sum(rate(medai_escalations_total[1h])) > 10
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High escalation rate"
+          description: "{{ $value | humanize }} escalations per hour - may indicate model confidence issues"
+
+      # Critical Findings Spike
+      - alert: CriticalFindingsSpike
+        expr: |
+          sum(increase(medai_critical_findings_total[1h])) > 5
+        for: 0m
+        labels:
+          severity: info
+        annotations:
+          summary: "Multiple critical findings detected"
+          description: "{{ $value | humanize }} critical findings in the last hour - ensure clinical review"
+
+      # No Critical Findings Processing (safety check)
+      - alert: CriticalFindingsNotProcessed
+        expr: |
+          sum(rate(medai_critical_findings_total[24h])) == 0
+          and sum(rate(medai_agent_calls_total{agent_type="diagnostic"}[24h])) > 100
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "No critical findings detected in 24h"
+          description: "With significant diagnostic volume, zero critical findings may indicate detection issues"
+
+  - name: medai_infrastructure_alerts
+    rules:
+      # Redis Down
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is down"
+          description: "Redis session storage is unavailable"
+
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: |
+          process_resident_memory_bytes{job="medai-api"} 
+          / 1024 / 1024 / 1024 > 3.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "API server using {{ $value | humanize }}GB of memory"
+
+      # vLLM/Triton Down (if GPU profile active)
+      - alert: InferenceServerDown
+        expr: |
+          up{job=~"vllm|triton"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Inference server {{ $labels.job }} is down"
+          description: "Model inference server has been unavailable for 2 minutes"
+
+  - name: medai_security_alerts
+    rules:
+      # Rate Limit Exceeded (potential attack)
+      - alert: RateLimitExceeded
+        expr: |
+          sum(rate(medai_requests_total[1m])) by (endpoint) > 100
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High request rate on {{ $labels.endpoint }}"
+          description: "{{ $value | humanize }} requests/sec - potential abuse"
+
+      # Unusual Error Pattern (security concern)
+      - alert: UnusualErrorPattern
+        expr: |
+          sum(rate(medai_requests_total{status=~"4.."}[5m])) by (endpoint)
+          / sum(rate(medai_requests_total[5m])) by (endpoint) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High client error rate on {{ $labels.endpoint }}"
+          description: "{{ $value | humanizePercentage }} client errors - may indicate attack or misconfiguration"

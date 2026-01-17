@@ -18,6 +18,7 @@ class DiagnosticState(TypedDict):
     preprocessed_images: list[Any]  # Processed image arrays
     findings: list[dict]
     confidence_scores: list[float]
+    localizations: list[dict]  # Bounding box localizations for findings
     requires_review: bool
     audit_trail: list[dict]
     fhir_context: dict
@@ -49,6 +50,7 @@ def create_initial_state(
         preprocessed_images=[],
         findings=[],
         confidence_scores=[],
+        localizations=[],
         requires_review=False,
         audit_trail=[],
         fhir_context=fhir_context or {},

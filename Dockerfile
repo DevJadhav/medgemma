@@ -17,6 +17,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     git \
+    wget \
+    openssl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security
@@ -34,10 +36,11 @@ FROM base as dependencies
 RUN pip install uv
 
 # Copy dependency files
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock* ./
 
-# Install dependencies using uv
-RUN uv pip install --system -r pyproject.toml
+# Install dependencies using uv (with optional extras for production)
+RUN uv pip install --system . && \
+    uv pip install --system gunicorn celery[redis] minio
 
 # =============================================================================
 # Stage 3: Application
@@ -49,6 +52,12 @@ COPY --chown=medai:medai . .
 
 # Install the application
 RUN uv pip install --system -e .
+
+# Copy startup scripts
+COPY --chown=medai:medai scripts/generate_secrets.py scripts/verify_connections.py scripts/
+
+# Make scripts executable
+RUN chmod +x scripts/*.py
 
 # Switch to non-root user
 USER medai
@@ -84,6 +93,16 @@ USER medai
 
 # Expose API port
 EXPOSE 8000
+
+# Copy entrypoint script
+COPY --chown=medai:medai docker/entrypoint.sh /entrypoint.sh
+
+USER root
+RUN chmod +x /entrypoint.sh
+USER medai
+
+# Use entrypoint for startup validation
+ENTRYPOINT ["/entrypoint.sh"]
 
 # Production command with gunicorn
 CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", \

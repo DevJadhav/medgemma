@@ -6,7 +6,7 @@ Provides:
 - Patient context aggregation
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
@@ -240,7 +240,7 @@ def create_diagnostic_report(
         "subject": {
             "reference": f"Patient/{patient_id}"
         },
-        "issued": datetime.utcnow().isoformat() + "Z",
+        "issued": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "performer": [
             {
                 "reference": f"Device/{performer_id}",

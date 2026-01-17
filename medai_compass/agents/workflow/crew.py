@@ -6,7 +6,7 @@ including scheduling, documentation, and prior authorization agents.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
 
@@ -72,7 +72,7 @@ class WorkflowResult:
     output: dict[str, Any]
     errors: list[str] = field(default_factory=list)
     processing_time_ms: float = 0.0
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class SchedulerAgent:
@@ -97,7 +97,7 @@ class SchedulerAgent:
         Returns:
             WorkflowResult with scheduling outcome
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         
         try:
             # Analyze scheduling constraints
@@ -114,12 +114,12 @@ class SchedulerAgent:
             # Generate confirmation
             confirmation = self._generate_confirmation(request, optimal_slot)
             
-            processing_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+            processing_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
             
             return WorkflowResult(
                 success=True,
                 agent_role=self.role,
-                task_id=f"sched-{request.patient_id}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+                task_id=f"sched-{request.patient_id}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
                 output={
                     "scheduled_date": optimal_slot["date"],
                     "scheduled_time": optimal_slot["time"],
@@ -180,7 +180,7 @@ class SchedulerAgent:
         if preferred_dates:
             selected_date = preferred_dates[0]
         else:
-            selected_date = datetime.utcnow().strftime("%Y-%m-%d")
+            selected_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
             
         return {
             "date": selected_date,
@@ -192,7 +192,7 @@ class SchedulerAgent:
     def _generate_confirmation(self, request: AppointmentRequest, slot: dict) -> dict:
         """Generate appointment confirmation."""
         return {
-            "number": f"APT-{request.patient_id}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+            "number": f"APT-{request.patient_id}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
             "instructions": self._get_instructions(request.appointment_type)
         }
     
@@ -216,13 +216,30 @@ class DocumenterAgent:
     discharge summaries, progress notes, and referral letters.
     """
     
-    def __init__(self, model_wrapper: Optional[Any] = None):
+    def __init__(self, model_wrapper: Optional[Any] = None, use_llm: bool = True):
         self.model = model_wrapper
         self.role = AgentRole.DOCUMENTER
+        self.use_llm = use_llm
+        self._inference_service = None
+    
+    async def _get_inference_service(self):
+        """Get MedGemma 27B inference service."""
+        if self._inference_service is None and self.use_llm:
+            try:
+                from medai_compass.models.inference_service import MedGemmaInferenceService
+                self._inference_service = MedGemmaInferenceService(
+                    model_name="google/medgemma-27b-it"
+                )
+                await self._inference_service.initialize()
+            except Exception as e:
+                import logging
+                logging.warning(f"Could not initialize MedGemma 27B: {e}")
+                self._inference_service = None
+        return self._inference_service
         
-    def process_request(self, request: DocumentationRequest) -> WorkflowResult:
+    async def process_request_async(self, request: DocumentationRequest) -> WorkflowResult:
         """
-        Process a documentation generation request.
+        Process a documentation generation request using MedGemma 27B.
         
         Args:
             request: DocumentationRequest with documentation details
@@ -230,7 +247,128 @@ class DocumenterAgent:
         Returns:
             WorkflowResult with generated document
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
+        
+        try:
+            inference_service = await self._get_inference_service()
+            
+            if inference_service:
+                # Use MedGemma 27B for generation
+                document = await self._generate_with_llm(request, inference_service)
+            else:
+                # Fall back to template-based generation
+                if request.document_type == "discharge_summary":
+                    document = self._generate_discharge_summary(request)
+                elif request.document_type == "progress_note":
+                    document = self._generate_progress_note(request)
+                elif request.document_type == "referral_letter":
+                    document = self._generate_referral_letter(request)
+                else:
+                    document = self._generate_generic_document(request)
+            
+            processing_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+            
+            return WorkflowResult(
+                success=True,
+                agent_role=self.role,
+                task_id=f"doc-{request.encounter_id}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+                output={
+                    "document_type": request.document_type,
+                    "document_id": document["id"],
+                    "content": document["content"],
+                    "summary": document["summary"],
+                    "word_count": len(document["content"].split()),
+                    "generated_by": document.get("generated_by", "template")
+                },
+                processing_time_ms=processing_time
+            )
+            
+        except Exception as e:
+            return WorkflowResult(
+                success=False,
+                agent_role=self.role,
+                task_id=f"doc-{request.encounter_id}-failed",
+                output={},
+                errors=[str(e)]
+            )
+    
+    async def _generate_with_llm(
+        self,
+        request: DocumentationRequest,
+        inference_service
+    ) -> dict:
+        """Generate document using MedGemma 27B."""
+        # Build comprehensive prompt
+        diagnoses_text = ", ".join([
+            d.get("display", d.get("code", "Unknown")) 
+            for d in request.diagnoses
+        ])
+        procedures_text = ", ".join([
+            p.get("display", p.get("code", "None")) 
+            for p in request.procedures
+        ]) or "None"
+        medications_list = [
+            m.get("display", m.get("code", "Unknown")) 
+            for m in request.medications
+        ]
+        
+        prompt = f"""Generate a professional {request.document_type.replace('_', ' ')} for the following clinical case.
+
+Patient ID: {request.patient_id}
+Encounter ID: {request.encounter_id}
+Date: {datetime.now(timezone.utc).strftime('%Y-%m-%d')}
+
+CLINICAL NOTES:
+{chr(10).join(request.clinical_notes)}
+
+DIAGNOSES:
+{diagnoses_text}
+
+PROCEDURES:
+{procedures_text}
+
+CURRENT MEDICATIONS:
+{chr(10).join(f'- {med}' for med in medications_list) if medications_list else '- None'}
+
+Please generate a complete, professional {request.document_type.replace('_', ' ')} following standard medical documentation format. Include all relevant sections and use appropriate medical terminology."""
+
+        system_prompt = """You are an experienced medical documentation specialist. 
+Generate clear, accurate, and comprehensive clinical documents following standard medical documentation practices.
+Use professional medical terminology and ensure all required sections are included.
+Do not include any information not provided in the clinical notes."""
+
+        result = await inference_service.generate(
+            prompt=prompt,
+            max_tokens=2048,
+            temperature=0.2,
+            system_prompt=system_prompt
+        )
+        
+        if result.error:
+            # Fall back to template
+            return self._generate_discharge_summary(request) if request.document_type == "discharge_summary" else self._generate_generic_document(request)
+        
+        return {
+            "id": f"{request.document_type.upper()[:3]}-{request.encounter_id}",
+            "content": result.response,
+            "summary": f"AI-generated {request.document_type.replace('_', ' ')} for patient {request.patient_id}",
+            "generated_by": f"medgemma-27b ({result.backend})",
+            "confidence": result.confidence
+        }
+        
+    def process_request(self, request: DocumentationRequest) -> WorkflowResult:
+        """
+        Process a documentation generation request (sync version).
+        
+        Falls back to template-based generation.
+        
+        Args:
+            request: DocumentationRequest with documentation details
+            
+        Returns:
+            WorkflowResult with generated document
+        """
+        start_time = datetime.now(timezone.utc)
         
         try:
             # Generate document based on type
@@ -243,12 +381,12 @@ class DocumenterAgent:
             else:
                 document = self._generate_generic_document(request)
             
-            processing_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+            processing_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
             
             return WorkflowResult(
                 success=True,
                 agent_role=self.role,
-                task_id=f"doc-{request.encounter_id}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+                task_id=f"doc-{request.encounter_id}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
                 output={
                     "document_type": request.document_type,
                     "document_id": document["id"],
@@ -280,7 +418,7 @@ DISCHARGE SUMMARY
 
 Patient ID: {request.patient_id}
 Encounter ID: {request.encounter_id}
-Date of Discharge: {datetime.utcnow().strftime('%Y-%m-%d')}
+Date of Discharge: {datetime.now(timezone.utc).strftime('%Y-%m-%d')}
 
 ADMISSION DIAGNOSES:
 {diagnoses_text}
@@ -317,7 +455,7 @@ PROGRESS NOTE
 
 Patient ID: {request.patient_id}
 Encounter ID: {request.encounter_id}
-Date: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}
+Date: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}
 
 SUBJECTIVE:
 {request.clinical_notes[0] if request.clinical_notes else 'No subjective notes provided.'}
@@ -345,7 +483,7 @@ PLAN:
         content = f"""
 REFERRAL LETTER
 
-Date: {datetime.utcnow().strftime('%Y-%m-%d')}
+Date: {datetime.now(timezone.utc).strftime('%Y-%m-%d')}
 
 RE: {request.patient_id}
 
@@ -383,7 +521,7 @@ CLINICAL DOCUMENT
 
 Patient ID: {request.patient_id}
 Encounter ID: {request.encounter_id}
-Date: {datetime.utcnow().strftime('%Y-%m-%d')}
+Date: {datetime.now(timezone.utc).strftime('%Y-%m-%d')}
 Document Type: {request.document_type}
 
 CLINICAL NOTES:
@@ -451,7 +589,7 @@ class PriorAuthAgent:
         Returns:
             WorkflowResult with authorization status
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         
         try:
             # Check if prior auth is required
@@ -461,12 +599,12 @@ class PriorAuthAgent:
                 return WorkflowResult(
                     success=True,
                     agent_role=self.role,
-                    task_id=f"auth-{request.patient_id}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+                    task_id=f"auth-{request.patient_id}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
                     output={
                         "status": "not_required",
                         "message": "Prior authorization not required for this procedure"
                     },
-                    processing_time_ms=(datetime.utcnow() - start_time).total_seconds() * 1000
+                    processing_time_ms=(datetime.now(timezone.utc) - start_time).total_seconds() * 1000
                 )
             
             # Validate clinical justification
@@ -479,12 +617,12 @@ class PriorAuthAgent:
             # Generate authorization request
             auth_request = self._generate_auth_request(request, justification_score)
             
-            processing_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+            processing_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
             
             return WorkflowResult(
                 success=True,
                 agent_role=self.role,
-                task_id=f"auth-{request.patient_id}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+                task_id=f"auth-{request.patient_id}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
                 output={
                     "status": auth_request["status"],
                     "authorization_number": auth_request.get("auth_number"),
@@ -549,12 +687,12 @@ class PriorAuthAgent:
             status = "auto_approved"
             recommendation = "Strong clinical justification supports approval"
             next_steps = ["Authorization granted", "Proceed with scheduling procedure"]
-            auth_number = f"AUTH-{datetime.utcnow().strftime('%Y%m%d')}-{request.procedure_code}"
+            auth_number = f"AUTH-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{request.procedure_code}"
         elif justification_score >= 0.6:
             status = "pending_review"
             recommendation = "Additional documentation may strengthen the request"
             next_steps = ["Request submitted for medical director review", "Expected response within 3 business days"]
-            auth_number = f"PEND-{datetime.utcnow().strftime('%Y%m%d')}-{request.procedure_code}"
+            auth_number = f"PEND-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{request.procedure_code}"
         else:
             status = "needs_info"
             recommendation = "Additional clinical justification required"

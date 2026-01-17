@@ -730,3 +730,527 @@ class CommunicationOrchestrator:
         if patient_id in self.conversations:
             return self.conversations[patient_id].messages
         return []
+
+    def get_conversation_summary(self, patient_id: str) -> dict:
+        """
+        Get a summary of the conversation with a patient.
+
+        Args:
+            patient_id: Patient ID
+
+        Returns:
+            Dictionary with conversation summary
+        """
+        if patient_id not in self.conversations:
+            return {"error": "No conversation found"}
+
+        context = self.conversations[patient_id]
+        messages = context.messages
+
+        # Count message types
+        patient_messages = [m for m in messages if m.get("role") == "patient"]
+        agent_messages = [m for m in messages if m.get("role") == "agent"]
+
+        # Get unique topics discussed
+        topics = set()
+        for msg in messages:
+            content = msg.get("content", "").lower()
+            for topic in ["medication", "appointment", "symptom", "billing", "test result"]:
+                if topic in content:
+                    topics.add(topic)
+
+        return {
+            "patient_id": patient_id,
+            "session_id": context.session_id,
+            "total_messages": len(messages),
+            "patient_messages": len(patient_messages),
+            "agent_messages": len(agent_messages),
+            "topics_discussed": list(topics),
+            "active_conditions": context.active_conditions,
+            "current_medications": context.current_medications,
+            "last_message_time": messages[-1].get("timestamp") if messages else None
+        }
+
+    def clear_conversation(self, patient_id: str) -> bool:
+        """
+        Clear conversation history for a patient.
+
+        Args:
+            patient_id: Patient ID
+
+        Returns:
+            True if cleared, False if not found
+        """
+        if patient_id in self.conversations:
+            del self.conversations[patient_id]
+            return True
+        return False
+
+    def export_conversation(self, patient_id: str) -> dict:
+        """
+        Export full conversation data for archiving.
+
+        Args:
+            patient_id: Patient ID
+
+        Returns:
+            Full conversation export
+        """
+        if patient_id not in self.conversations:
+            return {"error": "No conversation found"}
+
+        context = self.conversations[patient_id]
+
+        return {
+            "patient_id": context.patient_id,
+            "session_id": context.session_id,
+            "messages": context.messages,
+            "patient_history": context.patient_history,
+            "current_medications": context.current_medications,
+            "active_conditions": context.active_conditions,
+            "last_visit_date": context.last_visit_date,
+            "exported_at": datetime.now().isoformat()
+        }
+
+
+class MultiLanguageSupport:
+    """
+    Multi-language support for patient communication.
+
+    Provides translation and language detection for
+    supporting diverse patient populations.
+    """
+
+    # Supported languages
+    SUPPORTED_LANGUAGES = {
+        "en": "English",
+        "es": "Spanish",
+        "zh": "Chinese",
+        "vi": "Vietnamese",
+        "ko": "Korean",
+        "tl": "Tagalog",
+        "ar": "Arabic",
+        "fr": "French",
+        "de": "German",
+        "pt": "Portuguese",
+        "ru": "Russian",
+        "ja": "Japanese"
+    }
+
+    # Common medical phrases in multiple languages
+    MEDICAL_PHRASES = {
+        "emergency": {
+            "en": "This is a medical emergency. Please call 911 immediately.",
+            "es": "Esta es una emergencia medica. Por favor llame al 911 inmediatamente.",
+            "zh": "This is a medical emergency. Please call 911.",
+            "vi": "Day la tinh huong khan cap y te. Xin vui long goi 911 ngay lap tuc.",
+        },
+        "disclaimer": {
+            "en": "This information is for educational purposes only. Please consult your healthcare provider.",
+            "es": "Esta informacion es solo para fines educativos. Consulte a su proveedor de atencion medica.",
+            "zh": "This information is educational only. Please consult your doctor.",
+            "vi": "Thong tin nay chi mang tinh chat giao duc. Vui long tham khao y kien bac si.",
+        },
+        "appointment_confirm": {
+            "en": "Your appointment has been scheduled.",
+            "es": "Su cita ha sido programada.",
+            "zh": "Your appointment is confirmed.",
+            "vi": "Cuoc hen cua ban da duoc len lich.",
+        }
+    }
+
+    def __init__(self):
+        self.default_language = "en"
+
+    def detect_language(self, text: str) -> str:
+        """
+        Detect the language of input text.
+
+        Args:
+            text: Input text
+
+        Returns:
+            Language code (default: 'en')
+        """
+        # Simple detection based on character sets
+        text_lower = text.lower()
+
+        # Check for Spanish indicators
+        spanish_words = ["hola", "por favor", "gracias", "como", "esta", "dolor", "cita"]
+        if any(word in text_lower for word in spanish_words):
+            return "es"
+
+        # Check for Chinese characters
+        if any('\u4e00' <= char <= '\u9fff' for char in text):
+            return "zh"
+
+        # Check for Vietnamese diacritics
+        vietnamese_chars = "ăâđêôơưàảãạáằẳẵặắầẩẫậấ"
+        if any(char in text_lower for char in vietnamese_chars):
+            return "vi"
+
+        # Check for Korean characters
+        if any('\uac00' <= char <= '\ud7af' for char in text):
+            return "ko"
+
+        # Check for Japanese characters
+        if any('\u3040' <= char <= '\u309f' or '\u30a0' <= char <= '\u30ff' for char in text):
+            return "ja"
+
+        # Check for Arabic characters
+        if any('\u0600' <= char <= '\u06ff' for char in text):
+            return "ar"
+
+        # Default to English
+        return "en"
+
+    def get_phrase(self, phrase_key: str, language: str = "en") -> str:
+        """
+        Get a pre-translated medical phrase.
+
+        Args:
+            phrase_key: Key for the phrase
+            language: Target language code
+
+        Returns:
+            Translated phrase or English fallback
+        """
+        if phrase_key not in self.MEDICAL_PHRASES:
+            return ""
+
+        phrases = self.MEDICAL_PHRASES[phrase_key]
+        return phrases.get(language, phrases.get("en", ""))
+
+    def get_supported_languages(self) -> dict:
+        """Get dictionary of supported languages."""
+        return self.SUPPORTED_LANGUAGES.copy()
+
+    def is_language_supported(self, language_code: str) -> bool:
+        """Check if a language is supported."""
+        return language_code in self.SUPPORTED_LANGUAGES
+
+    def get_language_name(self, language_code: str) -> str:
+        """Get full name for a language code."""
+        return self.SUPPORTED_LANGUAGES.get(language_code, "Unknown")
+
+
+class ConversationManager:
+    """
+    Centralized conversation management with persistence support.
+
+    Manages conversation state, history, and context across
+    multiple patient interactions with Redis/PostgreSQL persistence
+    for multi-instance deployment.
+    """
+
+    def __init__(self, max_history_length: int = 100, use_persistence: bool = True):
+        """
+        Initialize conversation manager.
+
+        Args:
+            max_history_length: Maximum messages to retain per conversation
+            use_persistence: Whether to use Redis/PostgreSQL persistence
+        """
+        self.conversations: dict[str, ConversationContext] = {}
+        self.max_history_length = max_history_length
+        self.language_support = MultiLanguageSupport()
+        self.use_persistence = use_persistence
+        self._persistence_store = None
+    
+    async def _get_persistence_store(self):
+        """Get persistence store, creating if needed."""
+        if not self.use_persistence:
+            return None
+        
+        if self._persistence_store is None:
+            try:
+                from medai_compass.utils.persistence import get_conversation_store
+                self._persistence_store = get_conversation_store()
+            except ImportError:
+                self._persistence_store = None
+        
+        return self._persistence_store
+
+    async def create_session(
+        self,
+        patient_id: str,
+        patient_context: Optional[dict] = None,
+        language: str = "en"
+    ) -> ConversationContext:
+        """
+        Create a new conversation session with persistence.
+
+        Args:
+            patient_id: Patient identifier
+            patient_context: Optional patient context data
+            language: Preferred language
+
+        Returns:
+            New ConversationContext
+        """
+        session_id = f"conv-{patient_id}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+        context = ConversationContext(
+            patient_id=patient_id,
+            session_id=session_id
+        )
+
+        if patient_context:
+            context.patient_history = patient_context.get("history", {})
+            context.current_medications = patient_context.get("medications", [])
+            context.active_conditions = patient_context.get("conditions", [])
+            context.last_visit_date = patient_context.get("last_visit")
+
+        # Store in memory
+        self.conversations[patient_id] = context
+        
+        # Persist to storage
+        store = await self._get_persistence_store()
+        if store:
+            await store.save_conversation(
+                session_id=session_id,
+                patient_id=patient_id,
+                state={
+                    "patient_history": context.patient_history,
+                    "current_medications": context.current_medications,
+                    "active_conditions": context.active_conditions,
+                    "last_visit_date": context.last_visit_date,
+                    "language": language
+                },
+                messages=[],
+                context=patient_context
+            )
+        
+        return context
+    
+    def create_session_sync(
+        self,
+        patient_id: str,
+        patient_context: Optional[dict] = None,
+        language: str = "en"
+    ) -> ConversationContext:
+        """
+        Synchronous version of create_session for non-async contexts.
+        
+        Note: This does not persist to storage. Use async version when possible.
+        """
+        session_id = f"conv-{patient_id}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+        context = ConversationContext(
+            patient_id=patient_id,
+            session_id=session_id
+        )
+
+        if patient_context:
+            context.patient_history = patient_context.get("history", {})
+            context.current_medications = patient_context.get("medications", [])
+            context.active_conditions = patient_context.get("conditions", [])
+            context.last_visit_date = patient_context.get("last_visit")
+
+        self.conversations[patient_id] = context
+        return context
+
+    async def add_message(
+        self,
+        patient_id: str,
+        role: str,
+        content: str,
+        metadata: Optional[dict] = None,
+        agent_name: Optional[str] = None,
+        triage_result: Optional[dict] = None,
+        requires_review: bool = False
+    ) -> bool:
+        """
+        Add a message to conversation history with persistence.
+
+        Args:
+            patient_id: Patient identifier
+            role: Message role ('patient' or 'agent')
+            content: Message content
+            metadata: Optional additional metadata
+            agent_name: Name of responding agent
+            triage_result: Optional triage assessment
+            requires_review: Whether message needs clinician review
+
+        Returns:
+            True if added successfully
+        """
+        if patient_id not in self.conversations:
+            # Try to load from persistence
+            await self._load_conversation(patient_id)
+        
+        if patient_id not in self.conversations:
+            return False
+
+        context = self.conversations[patient_id]
+
+        message = {
+            "role": role,
+            "content": content,
+            "timestamp": datetime.now().isoformat(),
+            "agent_name": agent_name,
+            "requires_review": requires_review
+        }
+
+        if metadata:
+            message.update(metadata)
+        
+        if triage_result:
+            message["triage_result"] = triage_result
+
+        context.messages.append(message)
+
+        # Trim history if needed
+        if len(context.messages) > self.max_history_length:
+            context.messages = context.messages[-self.max_history_length:]
+
+        # Persist message
+        store = await self._get_persistence_store()
+        if store:
+            await store.add_message(
+                session_id=context.session_id,
+                role=role,
+                content=content,
+                agent_name=agent_name,
+                triage_result=triage_result,
+                requires_review=requires_review
+            )
+
+        return True
+    
+    def add_message_sync(
+        self,
+        patient_id: str,
+        role: str,
+        content: str,
+        metadata: Optional[dict] = None
+    ) -> bool:
+        """
+        Synchronous version of add_message for non-async contexts.
+        
+        Note: This does not persist to storage. Use async version when possible.
+        """
+        if patient_id not in self.conversations:
+            return False
+
+        context = self.conversations[patient_id]
+
+        message = {
+            "role": role,
+            "content": content,
+            "timestamp": datetime.now().isoformat()
+        }
+
+        if metadata:
+            message.update(metadata)
+
+        context.messages.append(message)
+
+        if len(context.messages) > self.max_history_length:
+            context.messages = context.messages[-self.max_history_length:]
+
+        return True
+    
+    async def _load_conversation(self, patient_id: str) -> bool:
+        """Load conversation from persistence store."""
+        store = await self._get_persistence_store()
+        if not store:
+            return False
+        
+        # Get most recent conversation for patient
+        conversations = await store.get_patient_conversations(patient_id, limit=1)
+        if not conversations:
+            return False
+        
+        conv_data = conversations[0]
+        session_id = conv_data.get("session_id")
+        
+        # Get full conversation data
+        full_data = await store.get_conversation(session_id)
+        if not full_data:
+            return False
+        
+        # Reconstruct context
+        state = full_data.get("state", {})
+        context = ConversationContext(
+            patient_id=patient_id,
+            session_id=session_id,
+            messages=full_data.get("messages", []),
+            patient_history=state.get("patient_history", {}),
+            current_medications=state.get("current_medications", []),
+            active_conditions=state.get("active_conditions", []),
+            last_visit_date=state.get("last_visit_date")
+        )
+        
+        self.conversations[patient_id] = context
+        return True
+
+    def get_context_for_prompt(self, patient_id: str, max_messages: int = 10) -> str:
+        """
+        Get formatted context for inclusion in prompts.
+
+        Args:
+            patient_id: Patient identifier
+            max_messages: Maximum recent messages to include
+
+        Returns:
+            Formatted context string
+        """
+        if patient_id not in self.conversations:
+            return ""
+
+        context = self.conversations[patient_id]
+        recent_messages = context.messages[-max_messages:]
+
+        context_parts = []
+
+        # Add patient info
+        if context.active_conditions:
+            context_parts.append(f"Active conditions: {', '.join(context.active_conditions)}")
+        if context.current_medications:
+            context_parts.append(f"Current medications: {', '.join(context.current_medications)}")
+
+        # Add recent conversation
+        if recent_messages:
+            context_parts.append("\nRecent conversation:")
+            for msg in recent_messages:
+                role = msg.get("role", "unknown")
+                content = msg.get("content", "")
+                context_parts.append(f"  {role}: {content[:200]}...")
+
+        return "\n".join(context_parts)
+
+    async def get_session(self, patient_id: str) -> Optional[ConversationContext]:
+        """Get existing session for patient, loading from persistence if needed."""
+        if patient_id not in self.conversations:
+            await self._load_conversation(patient_id)
+        return self.conversations.get(patient_id)
+    
+    def get_session_sync(self, patient_id: str) -> Optional[ConversationContext]:
+        """Synchronous version of get_session."""
+        return self.conversations.get(patient_id)
+
+    async def end_session(self, patient_id: str) -> Optional[dict]:
+        """
+        End a session and return final state.
+
+        Args:
+            patient_id: Patient identifier
+
+        Returns:
+            Final session data or None
+        """
+        if patient_id not in self.conversations:
+            return None
+
+        context = self.conversations[patient_id]
+        final_state = {
+            "patient_id": context.patient_id,
+            "session_id": context.session_id,
+            "message_count": len(context.messages),
+            "ended_at": datetime.now().isoformat()
+        }
+
+        # Note: We don't delete from persistence to keep history
+        del self.conversations[patient_id]
+        return final_state

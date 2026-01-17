@@ -152,16 +152,103 @@ class Test3DVolumeProcesing:
     def test_extract_slices_from_volume(self, sample_ct_volume):
         """Test extraction of 2D slices from 3D volume."""
         from medai_compass.utils.dicom import extract_slices
-        
+
         slices = extract_slices(sample_ct_volume, num_slices=8)
-        
+
         assert len(slices) == 8
         assert all(s.shape == sample_ct_volume.shape[1:] for s in slices)
 
     def test_create_mip_projection(self, sample_ct_volume):
         """Test Maximum Intensity Projection creation."""
         from medai_compass.utils.dicom import create_mip
-        
+
         mip = create_mip(sample_ct_volume, axis=0)
-        
+
         assert mip.shape == sample_ct_volume.shape[1:]
+
+    def test_create_minip_projection(self, sample_ct_volume):
+        """Test Minimum Intensity Projection creation."""
+        from medai_compass.utils.dicom import create_minip
+
+        minip = create_minip(sample_ct_volume, axis=0)
+
+        assert minip.shape == sample_ct_volume.shape[1:]
+        # MinIP should be less than or equal to MIP at every pixel
+        from medai_compass.utils.dicom import create_mip
+        mip = create_mip(sample_ct_volume, axis=0)
+        assert np.all(minip <= mip)
+
+    def test_create_average_projection(self, sample_ct_volume):
+        """Test average intensity projection creation."""
+        from medai_compass.utils.dicom import create_average_projection
+
+        avg = create_average_projection(sample_ct_volume, axis=0)
+
+        assert avg.shape == sample_ct_volume.shape[1:]
+
+    def test_multiplanar_reconstruction_axial(self, sample_ct_volume):
+        """Test MPR extraction in axial plane."""
+        from medai_compass.utils.dicom import multiplanar_reconstruction
+
+        axial = multiplanar_reconstruction(sample_ct_volume, plane="axial")
+
+        # Axial slice should have H x W dimensions
+        assert axial.shape == (sample_ct_volume.shape[1], sample_ct_volume.shape[2])
+
+    def test_multiplanar_reconstruction_coronal(self, sample_ct_volume):
+        """Test MPR extraction in coronal plane."""
+        from medai_compass.utils.dicom import multiplanar_reconstruction
+
+        coronal = multiplanar_reconstruction(sample_ct_volume, plane="coronal")
+
+        # Coronal slice should have D x W dimensions
+        assert coronal.shape == (sample_ct_volume.shape[0], sample_ct_volume.shape[2])
+
+    def test_multiplanar_reconstruction_sagittal(self, sample_ct_volume):
+        """Test MPR extraction in sagittal plane."""
+        from medai_compass.utils.dicom import multiplanar_reconstruction
+
+        sagittal = multiplanar_reconstruction(sample_ct_volume, plane="sagittal")
+
+        # Sagittal slice should have D x H dimensions
+        assert sagittal.shape == (sample_ct_volume.shape[0], sample_ct_volume.shape[1])
+
+    def test_prepare_3d_for_medgemma(self, sample_ct_volume):
+        """Test preparing 3D volume for MedGemma 1.5 input."""
+        from medai_compass.utils.dicom import prepare_3d_for_medgemma
+
+        # Request 4 slices per plane (3 planes = 12 total slices)
+        slices = prepare_3d_for_medgemma(
+            sample_ct_volume,
+            num_key_slices=4,
+            target_size=(896, 896)
+        )
+
+        # 3 planes x 4 slices = 12 total
+        assert len(slices) == 12
+        # Each slice should be RGB with target size
+        for s in slices:
+            assert s.shape == (896, 896, 3)
+
+    def test_calculate_volume_statistics(self, sample_ct_volume):
+        """Test volume statistics calculation."""
+        from medai_compass.utils.dicom import calculate_volume_statistics
+
+        stats = calculate_volume_statistics(sample_ct_volume)
+
+        assert "min" in stats
+        assert "max" in stats
+        assert "mean" in stats
+        assert "std" in stats
+        assert "shape" in stats
+        assert "total_voxels" in stats
+
+    def test_create_3d_montage(self, sample_ct_volume):
+        """Test 3D montage creation."""
+        from medai_compass.utils.dicom import create_3d_montage
+
+        montage = create_3d_montage(sample_ct_volume, rows=4, cols=4, axis=0)
+
+        expected_h = 4 * sample_ct_volume.shape[1]
+        expected_w = 4 * sample_ct_volume.shape[2]
+        assert montage.shape == (expected_h, expected_w)

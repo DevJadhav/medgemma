@@ -1,0 +1,165 @@
+# Diagnostic Pipeline Ensemble Configuration
+# Combines image preprocessing, embedding, and analysis
+
+name: "diagnostic_pipeline"
+platform: "ensemble"
+max_batch_size: 4
+
+# Input - raw medical image
+input [
+  {
+    name: "raw_image"
+    data_type: TYPE_UINT8
+    dims: [ -1, -1, -1 ]  # Variable size input image (H, W, C)
+  },
+  {
+    name: "modality"
+    data_type: TYPE_STRING
+    dims: [ 1 ]  # "cxr", "pathology", "ct", "mri"
+  },
+  {
+    name: "clinical_context"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
+    optional: true
+  }
+]
+
+# Output - comprehensive diagnostic analysis
+output [
+  {
+    name: "findings"
+    data_type: TYPE_STRING
+    dims: [ -1 ]  # Variable number of findings
+  },
+  {
+    name: "confidence_scores"
+    data_type: TYPE_FP32
+    dims: [ -1 ]
+  },
+  {
+    name: "severity"
+    data_type: TYPE_STRING
+    dims: [ 1 ]  # "low", "medium", "high", "critical"
+  },
+  {
+    name: "recommendations"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+  },
+  {
+    name: "raw_embeddings"
+    data_type: TYPE_FP32
+    dims: [ -1 ]
+    optional: true
+  }
+]
+
+# Ensemble scheduling
+ensemble_scheduling {
+  step [
+    # Step 1: Image preprocessing
+    {
+      model_name: "image_preprocessor"
+      model_version: -1
+      input_map {
+        key: "raw_image"
+        value: "raw_image"
+      }
+      input_map {
+        key: "modality"
+        value: "modality"
+      }
+      output_map {
+        key: "processed_image"
+        value: "preprocessed"
+      }
+    },
+    # Step 2: Run appropriate foundation model based on modality
+    # This is handled by a routing model or conditional execution
+    {
+      model_name: "modality_router"
+      model_version: -1
+      input_map {
+        key: "image"
+        value: "preprocessed"
+      }
+      input_map {
+        key: "modality"
+        value: "modality"
+      }
+      output_map {
+        key: "embeddings"
+        value: "image_embeddings"
+      }
+      output_map {
+        key: "preliminary_findings"
+        value: "foundation_output"
+      }
+    },
+    # Step 3: MedGemma analysis
+    {
+      model_name: "medgemma_4b"
+      model_version: -1
+      input_map {
+        key: "text_input"
+        value: "clinical_context"
+      }
+      input_map {
+        key: "image_input"
+        value: "preprocessed"
+      }
+      output_map {
+        key: "text_output"
+        value: "analysis"
+      }
+    },
+    # Step 4: Result aggregation
+    {
+      model_name: "result_aggregator"
+      model_version: -1
+      input_map {
+        key: "foundation_output"
+        value: "foundation_output"
+      }
+      input_map {
+        key: "medgemma_analysis"
+        value: "analysis"
+      }
+      input_map {
+        key: "embeddings"
+        value: "image_embeddings"
+      }
+      output_map {
+        key: "findings"
+        value: "findings"
+      }
+      output_map {
+        key: "confidence_scores"
+        value: "confidence_scores"
+      }
+      output_map {
+        key: "severity"
+        value: "severity"
+      }
+      output_map {
+        key: "recommendations"
+        value: "recommendations"
+      }
+      output_map {
+        key: "embeddings"
+        value: "raw_embeddings"
+      }
+    }
+  ]
+}
+
+# Dynamic batching for ensemble
+dynamic_batching {
+  preferred_batch_size: [ 1, 2, 4 ]
+  max_queue_delay_microseconds: 200000  # 200ms for full pipeline
+  preserve_ordering: true
+}
+
+# Response cache disabled for HIPAA compliance
+response_cache { enable: false }
