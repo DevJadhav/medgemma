@@ -44,6 +44,23 @@ from medai_compass.pipelines.quality import (
     DataQualityMonitor,
     QualityReport,
 )
+from medai_compass.pipelines.lora_trainer import (
+    LoRAConfig,
+    LoRATrainer,
+    QLoRATrainer,
+)
+from medai_compass.pipelines.training_pipeline import (
+    TrainingPipelineConfig,
+    TrainingPipelineOrchestrator,
+    prepare_data_task,
+    train_model_task,
+    evaluate_model_task,
+    register_model_task,
+)
+from medai_compass.pipelines.mlflow_integration import (
+    ExperimentConfig,
+    MLflowTracker,
+)
 
 __all__ = [
     # Ray pipeline
@@ -66,4 +83,18 @@ __all__ = [
     # Quality
     "DataQualityMonitor",
     "QualityReport",
+    # Training - LoRA/QLoRA
+    "LoRAConfig",
+    "LoRATrainer",
+    "QLoRATrainer",
+    # Training Pipeline
+    "TrainingPipelineConfig",
+    "TrainingPipelineOrchestrator",
+    "prepare_data_task",
+    "train_model_task",
+    "evaluate_model_task",
+    "register_model_task",
+    # MLflow Integration
+    "ExperimentConfig",
+    "MLflowTracker",
 ]

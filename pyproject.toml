@@ -115,6 +115,11 @@ training = [
     "dvc-s3>=3.0.0",        # S3 remote storage support
     "great-expectations>=0.18.0",  # Data quality (optional, for advanced checks)
     "pandera>=0.18.0",      # Schema validation
+    # Phase 3: Training Pipeline
+    "trl>=0.7.0",                           # SFTTrainer for instruction tuning
+    "flash-attn>=2.5.0; sys_platform == 'linux'",  # Flash Attention 2 (Linux/CUDA only)
+    "evaluate>=0.4.1",                      # Evaluation metrics
+    "tensorboard>=2.15.0",                  # Training visualization
 ]
 
 # All optional dependencies
