@@ -135,6 +135,13 @@ training = [
     # Jupyter notebook support
     "ipywidgets>=8.0.0",                    # Interactive widgets for notebooks
     "jupyter>=1.0.0",                       # Jupyter notebook support
+    # Phase 5: Synthetic Data Pipeline
+    "faker>=20.0.0",                        # Fake data generation
+    "sdv>=1.8.0",                           # Synthetic Data Vault
+    "ctgan>=0.9.0",                         # Conditional tabular GAN
+    "diffusers>=0.25.0",                    # Diffusion models for image synthesis
+    "tqdm>=4.66.0",                         # Progress tracking
+    "jsonlines>=4.0.0",                     # JSON Lines file handling
 ]
 
 # All optional dependencies

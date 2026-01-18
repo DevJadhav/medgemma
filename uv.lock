@@ -870,6 +870,20 @@ wheels = [
 ]
 
 [[package]]
+name = "boto3"
+version = "1.41.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "botocore" },
+    { name = "jmespath" },
+    { name = "s3transfer" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5b/81/450cd4143864959264a3d80f9246175a20de8c1e50ec889c710eaa28cdd9/boto3-1.41.5.tar.gz", hash = "sha256:bc7806bee681dfdff2fe2b74967b107a56274f1e66ebe4d20dc8eee1ea408d17", size = 111594, upload-time = "2025-11-26T20:27:47.021Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3c/56/f47a80254ed4991cce9a2f6d8ae8aafbc8df1c3270e966b2927289e5a12f/boto3-1.41.5-py3-none-any.whl", hash = "sha256:bb278111bfb4c33dca8342bda49c9db7685e43debbfa00cc2a5eb854dd54b745", size = 139344, upload-time = "2025-11-26T20:27:45.571Z" },
+]
+
+[[package]]
 name = "botocore"
 version = "1.41.5"
 source = { registry = "https://pypi.org/simple" }
@@ -1609,6 +1623,23 @@ wheels = [
 ]
 
 [[package]]
+name = "copulas"
+version = "0.14.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "pandas" },
+    { name = "plotly" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.17.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1b/de/9e72e6788a65921068444dcebfd2c9a3c94b4aaa84c9acf5dc020117c87d/copulas-0.14.0.tar.gz", hash = "sha256:e1dd90663f3c6a8210e1313159adbf1c2ed48bf69224ffe99a338243a880e678", size = 45032, upload-time = "2026-01-16T20:24:13.404Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/25/f4/bc379a1af3a8b26e6eb9d94fc176bf95c44dc43f1ea960fd189c46664c32/copulas-0.14.0-py3-none-any.whl", hash = "sha256:de0bf2357401340fe784fd85ca0087950fb47267779fc7ba793c483e5d2e402c", size = 52678, upload-time = "2026-01-16T20:24:11.58Z" },
+]
+
+[[package]]
 name = "coverage"
 version = "7.13.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1814,6 +1845,23 @@ wheels = [
 ]
 
 [[package]]
+name = "ctgan"
+version = "0.10.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "pandas" },
+    { name = "rdt" },
+    { name = "torch" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f5/32/dfa38935884334a7214e5fd0aff7216d1c5f913015d5b240c3e1e0182822/ctgan-0.10.2.tar.gz", hash = "sha256:e696fcb52c1591e589498eb42ff3d465bfd9052dadb75ee0eef85993ee0d358e", size = 25744, upload-time = "2024-10-22T15:44:36.31Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c2/dc/a73456bdd7c2ba9bcb016566d6986c51d3d4e9309b2046bfc3773a722cea/ctgan-0.10.2-py3-none-any.whl", hash = "sha256:566d33c886ef909e1134b2d670a5788182c64235b30435ac204f306c60725c70", size = 23891, upload-time = "2024-10-22T15:44:34.915Z" },
+]
+
+[[package]]
 name = "cuda-bindings"
 version = "13.1.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1956,6 +2004,22 @@ wheels = [
 ]
 
 [[package]]
+name = "deepecho"
+version = "0.6.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "pandas" },
+    { name = "torch" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/85/be/ea57c486da898a5f953402a23b00db96e344e9c741e03f1a60c81db1855a/deepecho-0.6.1.tar.gz", hash = "sha256:e3b2bb876c810953595d1999277aa9c653b33e1cc97662292893aa4608c80d4a", size = 30456, upload-time = "2024-10-22T17:50:35.742Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/49/e8/f5ffe968c62ea5ec13330bff21e8773fa07b79df803003033274daccd0bf/deepecho-0.6.1-py3-none-any.whl", hash = "sha256:17e8f36df2e013b2558a1e0a49e3cf86aee1c4b91704821c40672b3cd4bd5db2", size = 27777, upload-time = "2024-10-22T17:50:34.516Z" },
+]
+
+[[package]]
 name = "deepspeed"
 version = "0.18.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1991,6 +2055,27 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/61/7b/35cbccb7effc5d7e40f4c55e2b79399e1853041997fcda15c9ff160abba0/dictdiffer-0.9.0.tar.gz", hash = "sha256:17bacf5fbfe613ccf1b6d512bd766e6b21fb798822a133aa86098b8ac9997578", size = 31513, upload-time = "2021-07-22T13:24:29.276Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/47/ef/4cb333825d10317a36a1154341ba37e6e9c087bac99c1990ef07ffdb376f/dictdiffer-0.9.0-py2.py3-none-any.whl", hash = "sha256:442bfc693cfcadaf46674575d2eba1c53b42f5e404218ca2c2ff549f2df56595", size = 16754, upload-time = "2021-07-22T13:24:26.783Z" },
+]
+
+[[package]]
+name = "diffusers"
+version = "0.36.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "filelock" },
+    { name = "httpx" },
+    { name = "huggingface-hub" },
+    { name = "importlib-metadata" },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "pillow" },
+    { name = "regex" },
+    { name = "requests" },
+    { name = "safetensors" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/88/45/ccb2e2180ddf475a0f931dac6a50346310e4c464ce3cccb8a65d1fc1e16d/diffusers-0.36.0.tar.gz", hash = "sha256:a9cde8721b415bde6a678f2d02abb85396487e1b0e0d2b4abb462d14a9825ab0", size = 3795088, upload-time = "2025-12-08T10:14:34.255Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/35/50/281f92cb1f83854dbd79b6e958b3bc5018607e2542971d41604ba7a14b2f/diffusers-0.36.0-py3-none-any.whl", hash = "sha256:525d42abc74bfc3b2db594999961295c054b48ef40a11724dacf50e6abd1af98", size = 4597884, upload-time = "2025-12-08T10:14:31.979Z" },
 ]
 
 [[package]]
@@ -2334,6 +2419,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/cc/28/c14e053b6762b1044f34a13aab6859bbf40456d37d23aa286ac24cfd9a5d/executing-2.2.1.tar.gz", hash = "sha256:3632cc370565f6648cc328b32435bd120a1e4ebb20c77e3fdde9a13cd1e533c4", size = 1129488, upload-time = "2025-09-01T09:48:10.866Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c1/ea/53f2148663b321f21b5a606bd5f191517cf40b7072c0497d3c92c4a13b1e/executing-2.2.1-py2.py3-none-any.whl", hash = "sha256:760643d3452b4d777d295bb167ccc74c64a81df23fb5e08eff250c425a4b2017", size = 28317, upload-time = "2025-09-01T09:48:08.5Z" },
+]
+
+[[package]]
+name = "faker"
+version = "40.1.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "tzdata", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5e/77/1c3ff07b6739b9a1d23ca01ec0a90a309a33b78e345a3eb52f9ce9240e36/faker-40.1.2.tar.gz", hash = "sha256:b76a68163aa5f171d260fc24827a8349bc1db672f6a665359e8d0095e8135d30", size = 1949802, upload-time = "2026-01-13T20:51:49.917Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/46/ec/91a434c8a53d40c3598966621dea9c50512bec6ce8e76fa1751015e74cef/faker-40.1.2-py3-none-any.whl", hash = "sha256:93503165c165d330260e4379fd6dc07c94da90c611ed3191a0174d2ab9966a42", size = 1985633, upload-time = "2026-01-13T20:51:47.982Z" },
 ]
 
 [[package]]
@@ -2952,6 +3049,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/d1/13/98fbf8d67552f102488ffc16c6f559ce71ea15f6294728d33928ab5ff14d/graphql-relay-3.2.0.tar.gz", hash = "sha256:1ff1c51298356e481a0be009ccdff249832ce53f30559c1338f22a0e0d17250c", size = 50027, upload-time = "2022-04-16T11:03:45.447Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/74/16/a4cf06adbc711bd364a73ce043b0b08d8fa5aae3df11b6ee4248bcdad2e0/graphql_relay-3.2.0-py3-none-any.whl", hash = "sha256:c9b22bd28b170ba1fe674c74384a8ff30a76c8e26f88ac3aa1584dd3179953e5", size = 16940, upload-time = "2022-04-16T11:03:43.895Z" },
+]
+
+[[package]]
+name = "graphviz"
+version = "0.21"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f8/b3/3ac91e9be6b761a4b30d66ff165e54439dcd48b83f4e20d644867215f6ca/graphviz-0.21.tar.gz", hash = "sha256:20743e7183be82aaaa8ad6c93f8893c923bd6658a04c32ee115edb3c8a835f78", size = 200434, upload-time = "2025-06-15T09:35:05.824Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/91/4c/e0ce1ef95d4000ebc1c11801f9b944fa5910ecc15b5e351865763d8657f8/graphviz-0.21-py3-none-any.whl", hash = "sha256:54f33de9f4f911d7e84e4191749cac8cc5653f815b06738c54db9a15ab8b1e42", size = 47300, upload-time = "2025-06-15T09:35:04.433Z" },
 ]
 
 [[package]]
@@ -3752,6 +3858,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/85/3d/bbe62f3d0c05a689c711cff57b2e3ac3d3e526380adb7c781989f075115c/json5-0.10.0.tar.gz", hash = "sha256:e66941c8f0a02026943c52c2eb34ebeb2a6f819a0be05920a6f5243cd30fd559", size = 48202, upload-time = "2024-11-26T19:56:37.823Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/aa/42/797895b952b682c3dafe23b1834507ee7f02f4d6299b65aaa61425763278/json5-0.10.0-py3-none-any.whl", hash = "sha256:19b23410220a7271e8377f81ba8aacba2fdd56947fbb137ee5977cbe1f5e8dfa", size = 34049, upload-time = "2024-11-26T19:56:36.649Z" },
+]
+
+[[package]]
+name = "jsonlines"
+version = "4.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "attrs" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/35/87/bcda8e46c88d0e34cad2f09ee2d0c7f5957bccdb9791b0b934ec84d84be4/jsonlines-4.0.0.tar.gz", hash = "sha256:0c6d2c09117550c089995247f605ae4cf77dd1533041d366351f6f298822ea74", size = 11359, upload-time = "2023-09-01T12:34:44.187Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f8/62/d9ba6323b9202dd2fe166beab8a86d29465c41a0288cbe229fac60c1ab8d/jsonlines-4.0.0-py3-none-any.whl", hash = "sha256:185b334ff2ca5a91362993f42e83588a360cf95ce4b71a73548502bda52a7c55", size = 8701, upload-time = "2023-09-01T12:34:42.563Z" },
 ]
 
 [[package]]
@@ -4824,16 +4942,20 @@ dependencies = [
 [package.optional-dependencies]
 all = [
     { name = "bert-score" },
+    { name = "ctgan" },
     { name = "datasets" },
     { name = "deepspeed", marker = "sys_platform == 'linux'" },
+    { name = "diffusers" },
     { name = "dvc" },
     { name = "dvc-s3" },
     { name = "evaluate" },
+    { name = "faker" },
     { name = "flash-attn", marker = "sys_platform == 'linux'" },
     { name = "great-expectations" },
     { name = "hiplot" },
     { name = "hypothesis" },
     { name = "ipywidgets" },
+    { name = "jsonlines" },
     { name = "jupyter" },
     { name = "kaleido" },
     { name = "mkdocs" },
@@ -4857,8 +4979,10 @@ all = [
     { name = "safetensors" },
     { name = "scikit-learn", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "scikit-learn", version = "1.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "sdv" },
     { name = "tensorboard" },
     { name = "tensorboardx" },
+    { name = "tqdm" },
     { name = "tritonclient", marker = "sys_platform == 'darwin' or sys_platform == 'linux' or sys_platform == 'win32'" },
     { name = "tritonclient", extra = ["all"], marker = "sys_platform == 'linux'" },
     { name = "tritonclient", extra = ["grpc", "http"], marker = "sys_platform == 'darwin' or sys_platform == 'win32'" },
@@ -4866,16 +4990,20 @@ all = [
 ]
 all-cuda = [
     { name = "bert-score" },
+    { name = "ctgan" },
     { name = "datasets" },
     { name = "deepspeed", marker = "sys_platform == 'linux'" },
+    { name = "diffusers" },
     { name = "dvc" },
     { name = "dvc-s3" },
     { name = "evaluate" },
+    { name = "faker" },
     { name = "flash-attn", marker = "sys_platform == 'linux'" },
     { name = "great-expectations" },
     { name = "hiplot" },
     { name = "hypothesis" },
     { name = "ipywidgets" },
+    { name = "jsonlines" },
     { name = "jupyter" },
     { name = "kaleido" },
     { name = "mkdocs" },
@@ -4899,8 +5027,10 @@ all-cuda = [
     { name = "safetensors" },
     { name = "scikit-learn", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "scikit-learn", version = "1.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "sdv" },
     { name = "tensorboard" },
     { name = "tensorboardx" },
+    { name = "tqdm" },
     { name = "tritonclient", marker = "sys_platform == 'darwin' or sys_platform == 'linux' or sys_platform == 'win32'" },
     { name = "tritonclient", extra = ["all"], marker = "sys_platform == 'linux'" },
     { name = "tritonclient", extra = ["grpc", "http"], marker = "sys_platform == 'darwin' or sys_platform == 'win32'" },
@@ -4937,15 +5067,19 @@ serving = [
     { name = "tritonclient", extra = ["grpc", "http"], marker = "sys_platform == 'darwin' or sys_platform == 'win32'" },
 ]
 training = [
+    { name = "ctgan" },
     { name = "datasets" },
     { name = "deepspeed", marker = "sys_platform == 'linux'" },
+    { name = "diffusers" },
     { name = "dvc" },
     { name = "dvc-s3" },
     { name = "evaluate" },
+    { name = "faker" },
     { name = "flash-attn", marker = "sys_platform == 'linux'" },
     { name = "great-expectations" },
     { name = "hiplot" },
     { name = "ipywidgets" },
+    { name = "jsonlines" },
     { name = "jupyter" },
     { name = "kaleido" },
     { name = "mlflow" },
@@ -4955,8 +5089,10 @@ training = [
     { name = "plotly" },
     { name = "ray", extra = ["data", "train", "tune"] },
     { name = "safetensors" },
+    { name = "sdv" },
     { name = "tensorboard" },
     { name = "tensorboardx" },
+    { name = "tqdm" },
     { name = "trl" },
 ]
 vllm = [
@@ -4972,11 +5108,14 @@ requires-dist = [
     { name = "celery", extras = ["redis"], specifier = ">=5.3.0" },
     { name = "crewai", specifier = ">=0.28.0" },
     { name = "cryptography", specifier = ">=42.0.0" },
+    { name = "ctgan", marker = "extra == 'training'", specifier = ">=0.9.0" },
     { name = "datasets", marker = "extra == 'training'", specifier = ">=2.17.0" },
     { name = "deepspeed", marker = "sys_platform == 'linux' and extra == 'training'", specifier = ">=0.13.0" },
+    { name = "diffusers", marker = "extra == 'training'", specifier = ">=0.25.0" },
     { name = "dvc", marker = "extra == 'training'", specifier = ">=3.40.0" },
     { name = "dvc-s3", marker = "extra == 'training'", specifier = ">=3.0.0" },
     { name = "evaluate", marker = "extra == 'training'", specifier = ">=0.4.1" },
+    { name = "faker", marker = "extra == 'training'", specifier = ">=20.0.0" },
     { name = "fastapi", specifier = ">=0.110.0" },
     { name = "fhirclient", specifier = ">=4.1.0" },
     { name = "flash-attn", marker = "sys_platform == 'linux' and extra == 'training'", specifier = ">=2.5.0" },
@@ -4986,6 +5125,7 @@ requires-dist = [
     { name = "huggingface-hub", specifier = ">=0.20.0" },
     { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.98.0" },
     { name = "ipywidgets", marker = "extra == 'training'", specifier = ">=8.0.0" },
+    { name = "jsonlines", marker = "extra == 'training'", specifier = ">=4.0.0" },
     { name = "jupyter", marker = "extra == 'training'", specifier = ">=1.0.0" },
     { name = "kaleido", marker = "extra == 'training'", specifier = ">=0.2.1" },
     { name = "langchain", specifier = ">=0.1.0" },
@@ -5027,10 +5167,12 @@ requires-dist = [
     { name = "safetensors", marker = "extra == 'training'", specifier = ">=0.4.0" },
     { name = "scikit-learn", marker = "extra == 'evaluation'", specifier = ">=1.4.0" },
     { name = "scipy", specifier = ">=1.15.3" },
+    { name = "sdv", marker = "extra == 'training'", specifier = ">=1.8.0" },
     { name = "sqlalchemy", specifier = ">=2.0.0" },
     { name = "tensorboard", marker = "extra == 'training'", specifier = ">=2.15.0" },
     { name = "tensorboardx", marker = "extra == 'training'", specifier = ">=2.6.0" },
     { name = "torch", specifier = ">=2.0.0" },
+    { name = "tqdm", marker = "extra == 'training'", specifier = ">=4.66.0" },
     { name = "transformers", specifier = ">=4.40.0" },
     { name = "tritonclient", extras = ["all"], marker = "sys_platform == 'linux' and extra == 'serving'", specifier = ">=2.42.0" },
     { name = "tritonclient", extras = ["http", "grpc"], marker = "sys_platform == 'darwin' and extra == 'serving'", specifier = ">=2.42.0" },
@@ -8347,6 +8489,26 @@ tune = [
 ]
 
 [[package]]
+name = "rdt"
+version = "1.19.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "faker" },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "pandas" },
+    { name = "python-dateutil" },
+    { name = "scikit-learn", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scikit-learn", version = "1.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.17.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/28/8f/53c92719f77d9e590da4f73f590400d81e4d99ce958b3dd2116e97b83c3d/rdt-1.19.0.tar.gz", hash = "sha256:2423d760f311b94c3f1977cf086e6b4e8a81333be884d7ba89f0d4ca2cbf5523", size = 65183, upload-time = "2026-01-02T21:13:27.956Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/76/09/81aee78768ef887174838e93fe248136097dda463dbcee3e06cb288dc702/rdt-1.19.0-py3-none-any.whl", hash = "sha256:025be2638c2910b5f9d232a443266b3d47f17b4e4ba435baa7167dcf422ce985", size = 74411, upload-time = "2026-01-02T21:13:26.225Z" },
+]
+
+[[package]]
 name = "redis"
 version = "6.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -8724,6 +8886,18 @@ wheels = [
 ]
 
 [[package]]
+name = "s3transfer"
+version = "0.15.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "botocore" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ca/bb/940d6af975948c1cc18f44545ffb219d3c35d78ec972b42ae229e8e37e08/s3transfer-0.15.0.tar.gz", hash = "sha256:d36fac8d0e3603eff9b5bfa4282c7ce6feb0301a633566153cbd0b93d11d8379", size = 152185, upload-time = "2025-11-20T20:28:56.327Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5f/e1/5ef25f52973aa12a19cf4e1375d00932d7fb354ffd310487ba7d44225c1a/s3transfer-0.15.0-py3-none-any.whl", hash = "sha256:6f8bf5caa31a0865c4081186689db1b2534cef721d104eb26101de4b9d6a5852", size = 85984, upload-time = "2025-11-20T20:28:55.046Z" },
+]
+
+[[package]]
 name = "safetensors"
 version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -9044,6 +9218,53 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/35/ae/0b8533280cfeda22a58b32e71ddb09a84bbfa7d94ca81b624c3833a9cae7/scmrepo-3.6.1.tar.gz", hash = "sha256:73af4f3e652d565fd09cf9917e59de4df6dca2f5ff7625b91f0942e759915e33", size = 97365, upload-time = "2026-01-06T06:55:57.62Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/07/74/6f70b285d172f1e3fac435e4f10d1413dbe0a14810388e352a0e392e3188/scmrepo-3.6.1-py3-none-any.whl", hash = "sha256:c87e5802fca28fae9466d78315c03461ba388a6e8cefbf071ae8b06c372c89f9", size = 74074, upload-time = "2026-01-06T06:55:55.729Z" },
+]
+
+[[package]]
+name = "sdmetrics"
+version = "0.25.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "copulas" },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "pandas" },
+    { name = "plotly" },
+    { name = "scikit-learn", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scikit-learn", version = "1.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.17.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/df/13/806476e45e873684b9d5a7e5ce240ccc7c60d820e90593be34366e7f2e34/sdmetrics-0.25.0.tar.gz", hash = "sha256:c9ba0f410cecd6fd52f2c8c7c7b444777f572ef2b2881ed8d0fef89865e1168a", size = 134541, upload-time = "2026-01-08T23:22:07.589Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/db/c9/960894f76254d07b00e84cc2e7b0aca44638751a2f90b6c928f8f8d6f697/sdmetrics-0.25.0-py3-none-any.whl", hash = "sha256:24d4e8b3a849c26854a48fc82e55851aa2b8910e049037dbf246e9530b96bb44", size = 198506, upload-time = "2026-01-08T23:22:05.957Z" },
+]
+
+[[package]]
+name = "sdv"
+version = "1.18.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "boto3" },
+    { name = "botocore" },
+    { name = "cloudpickle" },
+    { name = "copulas" },
+    { name = "ctgan" },
+    { name = "deepecho" },
+    { name = "graphviz" },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "pandas" },
+    { name = "platformdirs" },
+    { name = "pyyaml" },
+    { name = "rdt" },
+    { name = "sdmetrics" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9d/98/dd6b7b1a980565f4c42a9144074501102bf1566f6d3b597cf80048950843/sdv-1.18.0.tar.gz", hash = "sha256:7b0325f8712e2432e5900a11fa62dfe7ca73515686469df990436bc26b20e4ad", size = 137849, upload-time = "2025-02-14T22:24:50.073Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/10/57/73addd935aaed14596ea796ca7503252d7a679b9a8f08b8277757db7cdb7/sdv-1.18.0-py3-none-any.whl", hash = "sha256:b7296b6ee7ab2a8e621c03740e43d3ea2db641accff1e0c053f6ec222c713ce9", size = 156118, upload-time = "2025-02-14T22:24:48.34Z" },
 ]
 
 [[package]]
