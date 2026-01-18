@@ -38,6 +38,7 @@ dependencies = [
     "pyjwt>=2.8.0",
     # Utilities
     "numpy>=1.26.0",
+    "pandas>=2.0.0",
     "pillow>=10.0.0",
     "httpx>=0.27.0",
     "pyyaml>=6.0.0",
@@ -105,21 +106,35 @@ guardrails = [
 
 # Training infrastructure (Ray, MLflow, DeepSpeed)
 training = [
-    "ray[train,tune,data]==2.9.0",
+    # Ray ecosystem (2.10+ supports Python 3.12)
+    "ray[train,tune,data]>=2.10.0",
+    # Experiment tracking
     "mlflow>=2.10.0",
+    # Distributed training (Linux/CUDA only)
     "deepspeed>=0.13.0; sys_platform == 'linux'",
+    # Data handling
     "datasets>=2.17.0",
     "safetensors>=0.4.0",
     # Data pipeline dependencies (Phase 2)
-    "dvc>=3.40.0",          # Data versioning
-    "dvc-s3>=3.0.0",        # S3 remote storage support
-    "great-expectations>=0.18.0",  # Data quality (optional, for advanced checks)
-    "pandera>=0.18.0",      # Schema validation
+    "dvc>=3.40.0",                          # Data versioning
+    "dvc-s3>=3.0.0",                        # S3 remote storage support
+    "great-expectations>=0.18.0",           # Data quality (optional, for advanced checks)
+    "pandera>=0.18.0",                      # Schema validation
     # Phase 3: Training Pipeline
     "trl>=0.7.0",                           # SFTTrainer for instruction tuning
     "flash-attn>=2.5.0; sys_platform == 'linux'",  # Flash Attention 2 (Linux/CUDA only)
     "evaluate>=0.4.1",                      # Evaluation metrics
     "tensorboard>=2.15.0",                  # Training visualization
+    "tensorboardx>=2.6.0",                  # TensorBoard X for additional logging
+    # Phase 4: Hyperparameter Optimization
+    "optuna>=3.5.0",                        # Bayesian optimization
+    "optuna-integration>=3.6.0",            # MLflow/Ray integrations
+    "plotly>=5.18.0",                       # HP visualization
+    "hiplot>=0.1.33",                       # High-dimensional HP visualization
+    "kaleido>=0.2.1",                       # Plotly static image export
+    # Jupyter notebook support
+    "ipywidgets>=8.0.0",                    # Interactive widgets for notebooks
+    "jupyter>=1.0.0",                       # Jupyter notebook support
 ]
 
 # All optional dependencies
