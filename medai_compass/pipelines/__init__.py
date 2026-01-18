@@ -61,6 +61,11 @@ from medai_compass.pipelines.mlflow_integration import (
     ExperimentConfig,
     MLflowTracker,
 )
+from medai_compass.pipelines.evaluation_pipeline import (
+    EvaluationPipeline,
+    EvaluationResult,
+    ReportGenerator,
+)
 
 __all__ = [
     # Ray pipeline
@@ -97,4 +102,8 @@ __all__ = [
     # MLflow Integration
     "ExperimentConfig",
     "MLflowTracker",
+    # Evaluation Pipeline (Phase 6)
+    "EvaluationPipeline",
+    "EvaluationResult",
+    "ReportGenerator",
 ]

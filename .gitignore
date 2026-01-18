@@ -234,7 +234,8 @@ redis-data/
 # =============================================================================
 # Documentation & Planning (not needed in production)
 # =============================================================================
-medgemma_implementation_plan.md
+medgemma_plan.md
+implementation_plan.md
 /docs/competition/
 WARP.md
 *.draft.md
@@ -280,3 +281,4 @@ htmlcov/
 .git/
 *.orig
 *.rej
+mlruns

@@ -5051,6 +5051,8 @@ dev = [
 ]
 evaluation = [
     { name = "bert-score" },
+    { name = "datasets" },
+    { name = "evaluate" },
     { name = "rouge-score" },
     { name = "scikit-learn", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "scikit-learn", version = "1.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
@@ -5109,11 +5111,13 @@ requires-dist = [
     { name = "crewai", specifier = ">=0.28.0" },
     { name = "cryptography", specifier = ">=42.0.0" },
     { name = "ctgan", marker = "extra == 'training'", specifier = ">=0.9.0" },
+    { name = "datasets", marker = "extra == 'evaluation'", specifier = ">=2.17.0" },
     { name = "datasets", marker = "extra == 'training'", specifier = ">=2.17.0" },
     { name = "deepspeed", marker = "sys_platform == 'linux' and extra == 'training'", specifier = ">=0.13.0" },
     { name = "diffusers", marker = "extra == 'training'", specifier = ">=0.25.0" },
     { name = "dvc", marker = "extra == 'training'", specifier = ">=3.40.0" },
     { name = "dvc-s3", marker = "extra == 'training'", specifier = ">=3.0.0" },
+    { name = "evaluate", marker = "extra == 'evaluation'", specifier = ">=0.4.1" },
     { name = "evaluate", marker = "extra == 'training'", specifier = ">=0.4.1" },
     { name = "faker", marker = "extra == 'training'", specifier = ">=20.0.0" },
     { name = "fastapi", specifier = ">=0.110.0" },
