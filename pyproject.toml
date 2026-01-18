@@ -95,11 +95,21 @@ serving = [
     "prometheus-client>=0.19.0",
 ]
 
-# Monitoring & Observability (Phase 8)
+# Monitoring & Observability (Phase 8 & 9)
 monitoring = [
     "alibi-detect>=0.11.0",                 # Drift detection (fully integrated)
     "slack-sdk>=3.21.0",                    # Slack notifications (optional via env var)
     "aiohttp>=3.9.0",                       # Async HTTP for PagerDuty
+    # OpenTelemetry (Phase 9)
+    "opentelemetry-api>=1.22.0",            # Core tracing API
+    "opentelemetry-sdk>=1.22.0",            # SDK implementation
+    "opentelemetry-exporter-otlp>=1.22.0",  # OTLP exporter for Jaeger/Grafana
+    "opentelemetry-instrumentation-fastapi>=0.43b0",   # FastAPI auto-instrumentation
+    "opentelemetry-instrumentation-redis>=0.43b0",     # Redis auto-instrumentation
+    "opentelemetry-instrumentation-sqlalchemy>=0.43b0", # SQLAlchemy auto-instrumentation
+    "opentelemetry-instrumentation-httpx>=0.43b0",     # HTTPX auto-instrumentation
+    # Load testing (Phase 9)
+    "locust>=2.24.0",                       # Load testing framework
 ]
 
 # vLLM serving (Linux only - requires CUDA)

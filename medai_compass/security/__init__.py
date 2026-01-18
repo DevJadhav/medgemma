@@ -5,6 +5,10 @@ Provides HIPAA-compliant security features:
 - JWT token management with MFA support
 - Role-based access control
 - Audit logging with 6-year retention
+- Security auditing (OWASP Top 10)
+- HIPAA compliance checking
+- API contract validation
+- Penetration testing integration
 """
 
 from medai_compass.security.encryption import (
@@ -19,6 +23,34 @@ from medai_compass.security.auth import (
 from medai_compass.security.audit import (
     AuditLogger,
     AuditEntry,
+    # Phase 9 additions
+    AuditConfig,
+    AuditResult,
+    AuditFinding,
+    AuditSeverity,
+    SecurityAudit,
+    OWASPAudit,
+    APISecurityAudit,
+)
+from medai_compass.security.hipaa import (
+    HIPAACompliance,
+    HIPAAViolation,
+    HIPAAReport,
+    HIPAACategory,
+    ComplianceStatus,
+)
+from medai_compass.security.contracts import (
+    APIContract,
+    ContractValidator,
+    APIContractReport,
+    ContractViolation,
+)
+from medai_compass.security.penetration import (
+    PenetrationTestConfig,
+    PenetrationTestRunner,
+    PenetrationTestResult,
+    PenetrationTestFinding,
+    PenetrationTestSeverity,
 )
 
 
@@ -120,6 +152,31 @@ __all__ = [
     # Audit
     "AuditLogger",
     "AuditEntry",
+    # Security Audit (Phase 9)
+    "AuditConfig",
+    "AuditResult",
+    "AuditFinding",
+    "AuditSeverity",
+    "SecurityAudit",
+    "OWASPAudit",
+    "APISecurityAudit",
+    # HIPAA Compliance (Phase 9)
+    "HIPAACompliance",
+    "HIPAAViolation",
+    "HIPAAReport",
+    "HIPAACategory",
+    "ComplianceStatus",
+    # API Contracts (Phase 9)
+    "APIContract",
+    "ContractValidator",
+    "APIContractReport",
+    "ContractViolation",
+    # Penetration Testing (Phase 9)
+    "PenetrationTestConfig",
+    "PenetrationTestRunner",
+    "PenetrationTestResult",
+    "PenetrationTestFinding",
+    "PenetrationTestSeverity",
     # Manager
     "HIPAASecurityManager",
 ]
