@@ -66,6 +66,18 @@ from medai_compass.pipelines.evaluation_pipeline import (
     EvaluationResult,
     ReportGenerator,
 )
+from medai_compass.pipelines.deployment_pipeline import (
+    DeploymentPipeline,
+    DeploymentPipelineConfig,
+    DeploymentResult,
+    DeploymentStage,
+    DeploymentMonitor,
+    DeploymentMetrics,
+    ModelPackager,
+    AlertConfig,
+    validate_config,
+    load_deployment_config,
+)
 
 __all__ = [
     # Ray pipeline
@@ -106,4 +118,15 @@ __all__ = [
     "EvaluationPipeline",
     "EvaluationResult",
     "ReportGenerator",
+    # Deployment Pipeline (Phase 7)
+    "DeploymentPipeline",
+    "DeploymentPipelineConfig",
+    "DeploymentResult",
+    "DeploymentStage",
+    "DeploymentMonitor",
+    "DeploymentMetrics",
+    "ModelPackager",
+    "AlertConfig",
+    "validate_config",
+    "load_deployment_config",
 ]

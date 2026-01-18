@@ -1,0 +1,128 @@
+# MedGemma Deployment Configuration
+# Phase 7: Deployment Pipeline
+
+# Default deployment settings
+default:
+  model_name: medgemma-27b-it
+  deployment_strategy: canary
+  canary_percentage: 10
+  health_check_interval: 30
+  rollback_on_failure: true
+  replicas: 1
+
+# Model-specific configurations
+models:
+  medgemma-27b-it:
+    description: "MedGemma 27B Instruction-Tuned (default for complex tasks)"
+    resources:
+      num_gpus: 2
+      memory_gb: 64
+      num_cpus: 16
+    serving:
+      max_batch_size: 4
+      max_concurrent_queries: 100
+    autoscaling:
+      min_replicas: 1
+      max_replicas: 4
+      target_num_ongoing_requests: 10
+    
+  medgemma-4b-it:
+    description: "MedGemma 4B Instruction-Tuned (faster inference)"
+    resources:
+      num_gpus: 1
+      memory_gb: 16
+      num_cpus: 8
+    serving:
+      max_batch_size: 8
+      max_concurrent_queries: 200
+    autoscaling:
+      min_replicas: 1
+      max_replicas: 8
+      target_num_ongoing_requests: 20
+
+# Deployment strategies
+strategies:
+  canary:
+    initial_percentage: 10
+    increment_percentage: 20
+    health_threshold: 0.95
+    latency_threshold_ms: 500
+    min_requests_before_promotion: 100
+    auto_promote: false
+    
+  blue-green:
+    warm_up_time_seconds: 60
+    switch_timeout_seconds: 30
+    
+  rolling:
+    max_surge: 1
+    max_unavailable: 0
+    progress_deadline_seconds: 600
+
+# Health check configuration
+health:
+  liveness:
+    initial_delay_seconds: 30
+    period_seconds: 10
+    timeout_seconds: 5
+    failure_threshold: 3
+    
+  readiness:
+    initial_delay_seconds: 60
+    period_seconds: 10
+    timeout_seconds: 10
+    failure_threshold: 3
+
+# Monitoring and alerting
+monitoring:
+  prometheus:
+    enabled: true
+    scrape_interval: 15s
+    metrics_path: /metrics
+    
+  alerts:
+    latency:
+      p95_threshold_ms: 500
+      p99_threshold_ms: 1000
+    error_rate:
+      threshold: 0.01
+    health:
+      threshold: 0.95
+
+# Rollback configuration
+rollback:
+  auto_rollback: true
+  consecutive_failures_threshold: 3
+  health_check_failure_threshold: 0.80
+  max_rollback_history: 10
+
+# Quality gates for deployment
+quality_gates:
+  safety_pass_rate: 0.99
+  latency_p95_ms: 500
+  error_rate_max: 0.01
+  min_accuracy: 0.75
+
+# Environment-specific overrides
+environments:
+  development:
+    replicas: 1
+    autoscaling:
+      enabled: false
+    monitoring:
+      alerts:
+        enabled: false
+        
+  staging:
+    replicas: 2
+    deployment_strategy: canary
+    canary_percentage: 50
+    
+  production:
+    replicas: 4
+    deployment_strategy: canary
+    canary_percentage: 10
+    rollback_on_failure: true
+    monitoring:
+      alerts:
+        enabled: true
