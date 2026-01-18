@@ -1,0 +1,209 @@
+# Data Pipeline Configuration
+# Configuration for Ray Data pipeline, validation, tokenization, PHI detection,
+# versioning, and quality monitoring.
+
+# =============================================================================
+# Ray Data Settings
+# =============================================================================
+ray_data:
+  # Parallelism settings
+  parallelism: auto  # Let Ray determine optimal parallelism
+  
+  # Memory management
+  target_max_block_size_bytes: 128_000_000  # 128MB blocks
+  
+  # Execution settings
+  preserve_order: false  # Allow reordering for performance
+  
+  # Prefetching
+  prefetch_batches: 2
+
+# =============================================================================
+# Validation Settings
+# =============================================================================
+validation:
+  # Strict mode - fail on validation errors
+  strict: true
+  
+  # Field validation
+  required_fields:
+    qa:
+      - question
+      - answer
+    instruction:
+      - instruction
+      - output
+    fhir_patient:
+      - resourceType
+      - id
+  
+  # Text quality thresholds
+  min_text_length: 10
+  max_text_length: 50000
+  
+  # Language validation
+  expected_language: "en"
+
+# =============================================================================
+# Tokenization Settings
+# =============================================================================
+tokenization:
+  # Default settings (overridden by model profile)
+  padding: "max_length"
+  truncation: true
+  return_tensors: "pt"
+  
+  # Instruction format template
+  instruction_template: |
+    ### Instruction:
+    {instruction}
+    
+    ### Input:
+    {input}
+    
+    ### Response:
+    {output}
+  
+  # QA format template
+  qa_template: |
+    ### Question:
+    {question}
+    
+    ### Answer:
+    {answer}
+
+# =============================================================================
+# PHI Detection Settings
+# =============================================================================
+phi_detection:
+  # Strict mode - completely remove records with PHI (per user requirement)
+  strict: true
+  
+  # Enable filtering in pipeline
+  enabled: true
+  
+  # Scan nested fields
+  scan_nested: true
+  
+  # Audit logging
+  log_detections: true
+  audit_log_path: "logs/phi_audit.log"
+  
+  # PHI types to detect
+  phi_types:
+    - ssn
+    - mrn
+    - phone
+    - email
+    - dob
+    - address
+    - name  # Patient names
+
+# =============================================================================
+# Dataset Settings
+# =============================================================================
+datasets:
+  # Synthea (synthetic EHR data)
+  synthea:
+    type: "fhir_bundle"
+    format: "json"
+    schema: "synthea"
+    preprocessing:
+      - convert_to_instruction
+      - validate
+      - phi_filter
+    
+  # MedQuAD (medical QA pairs)
+  medquad:
+    type: "qa_pairs"
+    format: "json"
+    schema: "qa"
+    preprocessing:
+      - validate
+      - phi_filter
+      - tokenize
+    
+  # Generic format
+  generic:
+    type: "json"
+    format: "json"
+    schema: "auto"
+    preprocessing:
+      - validate
+      - phi_filter
+
+# =============================================================================
+# Model Profiles
+# =============================================================================
+model_profiles:
+  medgemma_4b:
+    # Context and tokenization
+    max_length: 8192  # Conservative for training
+    context_length: 128000
+    
+    # Batch settings
+    batch_size: 8
+    gradient_accumulation_steps: 4
+    
+    # Training data format
+    data_format: "instruction"
+    
+  medgemma_27b:
+    # Context and tokenization
+    max_length: 4096  # Smaller for memory
+    context_length: 128000
+    
+    # Batch settings (smaller for 27B)
+    batch_size: 2
+    gradient_accumulation_steps: 16
+    
+    # Training data format
+    data_format: "instruction"
+
+# =============================================================================
+# Quality Monitoring Settings
+# =============================================================================
+quality:
+  # Enable quality checks
+  enabled: true
+  
+  # Checks to run
+  checks:
+    - completeness
+    - schema
+    - duplicates
+    - text_quality
+    - drift
+  
+  # Thresholds
+  completeness_threshold: 0.95
+  duplicate_threshold: 0.05  # Max 5% duplicates
+  
+  # Text quality
+  min_avg_length: 20
+  max_avg_length: 5000
+  
+  # Drift detection
+  drift_threshold: 0.3
+
+# =============================================================================
+# Versioning Settings (DVC)
+# =============================================================================
+versioning:
+  # Enable versioning
+  enabled: true
+  
+  # Remote storage
+  remote_type: "s3"  # s3, gcs, azure, local
+  remote_url: "${DVC_REMOTE_URL:-/data/dvc-cache}"
+  
+  # Auto-track settings
+  auto_track: false
+  
+  # Metadata to include
+  include_metadata:
+    - record_count
+    - size_bytes
+    - schema_version
+    - preprocessing_steps
+    - quality_report
