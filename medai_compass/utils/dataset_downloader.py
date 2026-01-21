@@ -80,11 +80,11 @@ DATASETS = {
     ),
     "meddialog": DatasetInfo(
         name="MedDialog",
-        url="https://github.com/UCSD-AI4H/Medical-Dialogue-System",
+        url="https://huggingface.co/datasets/medical_dialog",
         access=DatasetAccess.OPEN,
         size_gb=0.3,
         description="Medical dialogue dataset for conversational AI",
-        download_instructions="Clone from GitHub and download data files",
+        download_instructions="Download from HuggingFace datasets",
         requires_credentials=False,
     ),
     "chestxray14": DatasetInfo(
@@ -285,17 +285,46 @@ class DatasetDownloader:
         self._report_progress("MedQuAD download complete", 100)
     
     def _download_meddialog(self, output_path: Path) -> None:
-        """Clone MedDialog from GitHub."""
-        self._report_progress("Cloning MedDialog repository", 0)
+        """Download MedDialog from HuggingFace datasets."""
+        self._report_progress("Downloading MedDialog from HuggingFace", 0)
         
-        subprocess.run(
-            ["git", "clone", "--depth", "1",
-             "https://github.com/UCSD-AI4H/Medical-Dialogue-System.git",
-             str(output_path)],
-            check=True,
-        )
+        # Create directory structure
+        output_path.mkdir(parents=True, exist_ok=True)
         
-        self._report_progress("MedDialog download complete", 100)
+        # Download using HuggingFace datasets library
+        try:
+            from datasets import load_dataset
+            
+            self._report_progress("Loading dataset from HuggingFace", 20)
+            dataset = load_dataset("medical_dialog", "en", trust_remote_code=True)
+            
+            self._report_progress("Saving dataset to disk", 60)
+            dataset.save_to_disk(str(output_path / "dataset"))
+            
+            self._report_progress("MedDialog download complete", 100)
+        except ImportError:
+            # Fallback: create instructions
+            instructions = """# MedDialog Dataset Download Instructions
+
+The MedDialog dataset can be downloaded from HuggingFace:
+https://huggingface.co/datasets/medical_dialog
+
+## Using Python:
+```python
+from datasets import load_dataset
+dataset = load_dataset("medical_dialog", "en")
+```
+
+## Dataset Info:
+- Medical dialogue conversations
+- English subset available
+"""
+            (output_path / "README.md").write_text(instructions)
+            self._report_progress("MedDialog setup complete - see README for instructions", 100)
+            logger.warning(
+                "HuggingFace datasets library not available. "
+                f"See instructions at: {output_path / 'README.md'}"
+            )
     
     def _download_chestxray14(self, output_path: Path) -> None:
         """
@@ -435,6 +464,156 @@ and Image Database Resource Initiative (IDRI). Medical Physics 38(2), 2011.
         )
         
         self._report_progress("MIMIC-IV download complete", 100)
+    
+    def download_physionet_limited(
+        self,
+        dataset_id: str,
+        max_size_gb: float = 1.0,
+        file_patterns: list[str] | None = None,
+    ) -> Path:
+        """
+        Download PhysioNet dataset with a size limit.
+        
+        Args:
+            dataset_id: Dataset identifier (mimic_iv or mimic_cxr)
+            max_size_gb: Maximum size to download in GB (default 1.0)
+            file_patterns: Optional list of file patterns to download
+            
+        Returns:
+            Path to downloaded dataset
+        """
+        if not self.physionet_username or not self.physionet_password:
+            raise ValueError("PhysioNet credentials required. Set PHYSIONET_USERNAME and PHYSIONET_PASSWORD.")
+        
+        dataset_urls = {
+            "mimic_iv": "https://physionet.org/files/mimiciv/3.1/",
+            "mimic_cxr": "https://physionet.org/files/mimic-cxr-jpg/2.0.0/",
+        }
+        
+        if dataset_id not in dataset_urls:
+            raise ValueError(f"Unknown PhysioNet dataset: {dataset_id}. Available: {list(dataset_urls.keys())}")
+        
+        output_path = self.output_dir / dataset_id
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        base_url = dataset_urls[dataset_id]
+        max_size_bytes = int(max_size_gb * 1024 * 1024 * 1024)
+        downloaded_bytes = 0
+        
+        self._report_progress(f"Downloading {dataset_id} (max {max_size_gb}GB)", 0)
+        
+        # Create authentication for requests
+        import requests
+        from requests.auth import HTTPBasicAuth
+        
+        auth = HTTPBasicAuth(self.physionet_username, self.physionet_password)
+        
+        # Get the file listing
+        try:
+            # Download the index/README first
+            readme_url = f"{base_url}README"
+            response = requests.get(readme_url, auth=auth, timeout=30)
+            if response.status_code == 200:
+                (output_path / "README").write_bytes(response.content)
+                downloaded_bytes += len(response.content)
+            
+            # Get SHA256SUMS for file listing
+            sha_url = f"{base_url}SHA256SUMS.txt"
+            response = requests.get(sha_url, auth=auth, timeout=30)
+            if response.status_code == 200:
+                (output_path / "SHA256SUMS.txt").write_bytes(response.content)
+                downloaded_bytes += len(response.content)
+                
+                # Parse file list from SHA256SUMS
+                files_to_download = []
+                for line in response.text.strip().split('\n'):
+                    if line.strip():
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            filename = parts[1].lstrip('./')
+                            files_to_download.append(filename)
+            else:
+                # Fallback: manually specify key files for MIMIC-IV
+                if dataset_id == "mimic_iv":
+                    files_to_download = [
+                        "hosp/patients.csv.gz",
+                        "hosp/admissions.csv.gz",
+                        "hosp/diagnoses_icd.csv.gz",
+                        "hosp/procedures_icd.csv.gz",
+                        "hosp/labevents.csv.gz",
+                        "hosp/prescriptions.csv.gz",
+                        "icu/icustays.csv.gz",
+                        "icu/chartevents.csv.gz",
+                    ]
+                else:
+                    files_to_download = []
+            
+            # Filter by patterns if provided
+            if file_patterns:
+                filtered = []
+                for f in files_to_download:
+                    for pattern in file_patterns:
+                        if pattern in f:
+                            filtered.append(f)
+                            break
+                files_to_download = filtered
+            
+            # Download files until size limit reached
+            total_files = len(files_to_download)
+            for i, filename in enumerate(files_to_download):
+                if downloaded_bytes >= max_size_bytes:
+                    self._report_progress(f"Size limit reached ({max_size_gb}GB)", 100)
+                    break
+                
+                file_url = f"{base_url}{filename}"
+                file_path = output_path / filename
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                try:
+                    # Stream download to check size
+                    response = requests.get(file_url, auth=auth, stream=True, timeout=60)
+                    if response.status_code == 200:
+                        content_length = int(response.headers.get('content-length', 0))
+                        
+                        # Skip if this file would exceed limit
+                        if downloaded_bytes + content_length > max_size_bytes:
+                            logger.info(f"Skipping {filename} ({content_length/1024/1024:.1f}MB) - would exceed limit")
+                            continue
+                        
+                        # Download the file
+                        with open(file_path, 'wb') as f:
+                            for chunk in response.iter_content(chunk_size=8192):
+                                f.write(chunk)
+                                downloaded_bytes += len(chunk)
+                        
+                        progress = min(99, int((i + 1) / total_files * 100))
+                        self._report_progress(
+                            f"Downloaded {filename} ({downloaded_bytes/1024/1024:.1f}MB total)",
+                            progress
+                        )
+                except Exception as e:
+                    logger.warning(f"Failed to download {filename}: {e}")
+                    continue
+            
+            self._report_progress(f"Download complete ({downloaded_bytes/1024/1024:.1f}MB)", 100)
+            
+            # Write download info
+            info = {
+                "dataset": dataset_id,
+                "source": base_url,
+                "downloaded_bytes": downloaded_bytes,
+                "downloaded_mb": downloaded_bytes / 1024 / 1024,
+                "max_size_gb": max_size_gb,
+                "files_attempted": len(files_to_download),
+            }
+            import json
+            (output_path / "download_info.json").write_text(json.dumps(info, indent=2))
+            
+        except Exception as e:
+            logger.error(f"Failed to download {dataset_id}: {e}")
+            raise
+        
+        return output_path
     
     def _download_camelyon16(self, output_path: Path) -> None:
         """Setup CAMELYON16 download instructions."""

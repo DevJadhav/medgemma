@@ -47,44 +47,69 @@ except ImportError:
 # Prometheus Metrics
 # =============================================================================
 if PROMETHEUS_AVAILABLE:
-    REQUEST_COUNT = Counter(
+    from prometheus_client import REGISTRY
+    
+    # Helper to get or create a metric
+    def get_or_create_counter(name, description, labels):
+        """Get existing counter or create a new one."""
+        try:
+            return Counter(name, description, labels)
+        except ValueError:
+            # Already exists, get it from registry
+            return REGISTRY._names_to_collectors.get(name, Counter(name, description, labels))
+    
+    def get_or_create_histogram(name, description, labels, buckets):
+        """Get existing histogram or create a new one."""
+        try:
+            return Histogram(name, description, labels, buckets=buckets)
+        except ValueError:
+            return REGISTRY._names_to_collectors.get(name, Histogram(name, description, labels, buckets=buckets))
+    
+    def get_or_create_gauge(name, description):
+        """Get existing gauge or create a new one."""
+        try:
+            return Gauge(name, description)
+        except ValueError:
+            return REGISTRY._names_to_collectors.get(name, Gauge(name, description))
+    
+    REQUEST_COUNT = get_or_create_counter(
         "medai_requests_total",
         "Total number of requests",
         ["method", "endpoint", "status"],
     )
-    REQUEST_LATENCY = Histogram(
+    REQUEST_LATENCY = get_or_create_histogram(
         "medai_request_latency_seconds",
         "Request latency in seconds",
         ["method", "endpoint"],
         buckets=[0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0],
     )
-    ACTIVE_REQUESTS = Gauge(
+    ACTIVE_REQUESTS = get_or_create_gauge(
         "medai_active_requests",
         "Number of active requests",
     )
-    AGENT_CALLS = Counter(
+    AGENT_CALLS = get_or_create_counter(
         "medai_agent_calls_total",
         "Total agent invocations",
         ["agent_type", "status"],
     )
-    AGENT_LATENCY = Histogram(
+    AGENT_LATENCY = get_or_create_histogram(
         "medai_agent_latency_seconds",
         "Agent processing latency",
         ["agent_type"],
         buckets=[0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0],
     )
-    MODEL_INFERENCE_LATENCY = Histogram(
+    MODEL_INFERENCE_LATENCY = get_or_create_histogram(
         "medai_model_inference_seconds",
         "Model inference latency",
         ["model_name"],
         buckets=[0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0],
     )
-    ESCALATIONS = Counter(
+    ESCALATIONS = get_or_create_counter(
         "medai_escalations_total",
         "Total escalations to human review",
         ["reason"],
     )
-    CRITICAL_FINDINGS = Counter(
+    CRITICAL_FINDINGS = get_or_create_counter(
         "medai_critical_findings_total",
         "Critical findings detected",
         ["finding_type"],
@@ -652,6 +677,12 @@ async def process_message(request: CommunicationRequest) -> CommunicationRespons
         result = orchestrator.process_message(patient_msg)
 
         processing_time = (time.time() - start_time) * 1000
+        
+        # Map AgentResponse fields to CommunicationResponse
+        requires_escalation = getattr(result, 'requires_clinician_review', False) or getattr(result, 'requires_escalation', False)
+        triage_level = "INFORMATIONAL"
+        if hasattr(result, 'triage_result') and result.triage_result:
+            triage_level = result.triage_result.urgency.value if hasattr(result.triage_result.urgency, 'value') else str(result.triage_result.urgency)
 
         if PROMETHEUS_AVAILABLE:
             AGENT_CALLS.labels(agent_type="communication", status="success").inc()
@@ -659,7 +690,7 @@ async def process_message(request: CommunicationRequest) -> CommunicationRespons
                 processing_time / 1000
             )
 
-            if result.requires_escalation:
+            if requires_escalation:
                 ESCALATIONS.labels(reason="communication_escalation").inc()
 
         # Store session in Redis
@@ -672,10 +703,10 @@ async def process_message(request: CommunicationRequest) -> CommunicationRespons
 
         return CommunicationResponse(
             request_id=request_id,
-            response=result.response,
-            triage_level=result.triage_level.value if hasattr(result.triage_level, 'value') else str(result.triage_level),
-            requires_escalation=result.requires_escalation,
-            disclaimer=result.disclaimer,
+            response=result.content,
+            triage_level=triage_level,
+            requires_escalation=requires_escalation,
+            disclaimer="This is for informational purposes only. Please consult a healthcare provider for medical advice.",
             session_id=session_id,
             processing_time_ms=processing_time,
         )

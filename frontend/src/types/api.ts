@@ -7,7 +7,7 @@
 // Triage and Urgency Types
 // =============================================================================
 
-export type TriageLevel = 
+export type TriageLevel =
   | 'EMERGENCY'
   | 'URGENT'
   | 'SOON'
@@ -121,7 +121,7 @@ export interface WorkflowResponse {
 // Escalation Types
 // =============================================================================
 
-export type EscalationReason = 
+export type EscalationReason =
   | 'critical_finding'
   | 'low_confidence'
   | 'safety_concern'
@@ -135,14 +135,14 @@ export interface EscalationItem {
   reason: EscalationReason;
   priority: 'high' | 'medium' | 'low' | 'critical';
   status: 'pending' | 'in_review' | 'approved' | 'rejected';
-  
+
   // Diagnostic escalation
   diagnostic_result?: DiagnosticResponse;
-  
+
   // Communication escalation
   communication_result?: CommunicationResponse;
   original_message?: string;
-  
+
   // Additional fields from backend
   agent_type?: string;
   case_type?: string;
@@ -150,7 +150,7 @@ export interface EscalationItem {
   confidence_score?: number;
   uncertainty_score?: number;
   context?: string;
-  
+
   // Reviewer info
   assigned_to?: string;
   reviewed_by?: string;
@@ -203,9 +203,17 @@ export interface APIError {
 // =============================================================================
 
 export interface DashboardStats {
-  total_requests: number;
-  pending_reviews: number;
-  critical_findings_today: number;
-  average_response_time_ms: number;
-  escalation_rate: number;
+  // Fields from EscalationStatsResponse
+  total_pending: number;
+  total_in_review: number;
+  total_approved_today: number;
+  total_rejected_today: number;
+  average_review_time_ms: number;
+
+  // Legacy fields (optional or to be computed client-side)
+  total_requests?: number;
+  pending_reviews?: number; // Mapped to total_pending in derived logic
+  critical_findings_today?: number;
+  average_response_time_ms?: number;
+  escalation_rate?: number;
 }

@@ -10,10 +10,10 @@ export interface AlertProps {
 }
 
 const variantStyles = {
-  info: 'bg-primary-50 border-primary-200 text-primary-800',
-  warning: 'bg-urgent-50 border-urgent-200 text-urgent-800',
-  error: 'bg-emergency-50 border-emergency-200 text-emergency-800',
-  success: 'bg-success-50 border-success-200 text-success-800',
+  info: 'bg-blue-50 border-l-4 border-blue-500 text-blue-800',
+  warning: 'bg-amber-50 border-l-4 border-amber-500 text-amber-800',
+  error: 'bg-red-50 border-l-4 border-red-500 text-red-800',
+  success: 'bg-emerald-50 border-l-4 border-emerald-500 text-emerald-800',
 };
 
 const iconPaths = {
@@ -21,6 +21,13 @@ const iconPaths = {
   warning: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z',
   error: 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z',
   success: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+};
+
+const iconColors = {
+  info: 'text-blue-500',
+  warning: 'text-amber-500',
+  error: 'text-red-500',
+  success: 'text-emerald-500',
 };
 
 export function Alert({
@@ -35,13 +42,13 @@ export function Alert({
     <div
       role="alert"
       className={`
-        flex items-start p-4 rounded-lg border
+        flex items-start p-4 rounded-xl
         ${variantStyles[variant]}
         ${className}
       `}
     >
       <svg
-        className="w-5 h-5 mr-3 flex-shrink-0 mt-0.5"
+        className={`w-5 h-5 mr-3 flex-shrink-0 mt-0.5 ${iconColors[variant]}`}
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"
@@ -55,12 +62,12 @@ export function Alert({
       </svg>
       <div className="flex-1">
         {title && <h4 className="font-semibold mb-1">{title}</h4>}
-        <div className="text-sm">{children}</div>
+        <div className="text-sm leading-relaxed">{children}</div>
       </div>
       {dismissible && (
         <button
           onClick={onDismiss}
-          className="ml-3 flex-shrink-0 -mr-1 -mt-1 p-1 rounded hover:bg-black/5"
+          className="ml-3 flex-shrink-0 -mr-1 -mt-1 p-1.5 rounded-lg hover:bg-black/5 transition-colors"
           aria-label="Dismiss"
         >
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -86,27 +93,33 @@ export function EmergencyAlert({ children, className = '' }: EmergencyAlertProps
     <div
       role="alert"
       className={`
-        flex items-center p-4 rounded-lg
-        bg-emergency-600 text-white
-        animate-pulse
+        flex items-center p-5 rounded-2xl
+        bg-gradient-to-r from-red-500 to-red-600 text-white
+        shadow-lg shadow-red-500/25
+        emergency-pulse
         ${className}
       `}
     >
-      <svg
-        data-testid="emergency-icon"
-        className="w-6 h-6 mr-3 flex-shrink-0"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-        />
-      </svg>
-      <div className="font-semibold">{children}</div>
+      <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center mr-4 flex-shrink-0">
+        <svg
+          data-testid="emergency-icon"
+          className="w-6 h-6"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+          />
+        </svg>
+      </div>
+      <div>
+        <p className="font-bold text-lg mb-1">Emergency Alert</p>
+        <p className="text-white/90 text-sm">{children}</p>
+      </div>
     </div>
   );
 }

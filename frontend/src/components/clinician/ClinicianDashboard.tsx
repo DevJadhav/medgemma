@@ -15,18 +15,18 @@ type CaseTypeFilter = 'all' | 'diagnostic' | 'workflow' | 'communication';
 
 export function ClinicianDashboard() {
   // Use hooks with 30s polling
-  const { 
-    escalations, 
-    total, 
-    loading, 
-    error: fetchError, 
+  const {
+    escalations,
+    total,
+    loading,
+    error: fetchError,
     lastUpdated,
-    refresh 
+    refresh
   } = useEscalations({}, true);
-  
+
   const { stats, loading: statsLoading } = useEscalationStats(true);
   const { submitReview, loading: reviewLoading, error: reviewError } = useReviewSubmission();
-  
+
   const [selectedEscalation, setSelectedEscalation] = useState<EscalationItem | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all');
@@ -52,7 +52,7 @@ export function ClinicianDashboard() {
       decision: 'approve',
       notes,
     };
-    
+
     const result = await submitReview(id, decision);
     if (result) {
       handleCloseModal();
@@ -66,7 +66,7 @@ export function ClinicianDashboard() {
       decision: 'reject',
       notes: reason,
     };
-    
+
     const result = await submitReview(id, decision);
     if (result) {
       handleCloseModal();
@@ -174,7 +174,7 @@ export function ClinicianDashboard() {
                 <Button
                   key={priority}
                   size="sm"
-                  variant={priorityFilter === priority ? 'primary' : 'outline'}
+                  variant={priorityFilter === priority ? 'default' : 'outline'}
                   onClick={() => setPriorityFilter(priority)}
                 >
                   {priority.charAt(0).toUpperCase() + priority.slice(1)}
@@ -190,7 +190,7 @@ export function ClinicianDashboard() {
               <Button
                 key={type}
                 size="sm"
-                variant={caseTypeFilter === type ? 'primary' : 'outline'}
+                variant={caseTypeFilter === type ? 'default' : 'outline'}
                 onClick={() => setCaseTypeFilter(type)}
               >
                 {type.charAt(0).toUpperCase() + type.slice(1)}

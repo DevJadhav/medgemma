@@ -1,66 +1,6 @@
 # MedAI Compass - Production Docker Compose
 # HIPAA-compliant multi-service deployment
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-]    "get_gpu_metrics",    "log_training_step",    # Metrics    "run_training_pipeline",    # Pipeline    "create_training_dataset",    "MedicalDataPipeline",    # Data    "get_latest_checkpoint",    "load_checkpoint",    "save_checkpoint",    "CheckpointManager",    # Checkpoints    "TrainingResult",    "TrainingConfig",    "MedGemmaTrainer",    # Training    "ModelNotFoundError",    "get_training_config",    "select_model",    # Model selection__all__ = [)    log_training_step,    get_gpu_metrics,from .metrics import ()    run_training_pipeline,from .pipeline import ()    create_training_dataset,    MedicalDataPipeline,from .data_pipeline import ()    save_checkpoint,    load_checkpoint,    get_latest_checkpoint,    CheckpointManager,from .checkpoint_manager import ()    TrainingResult,    TrainingConfig,    MedGemmaTrainer,from .ray_trainer import ()    select_model,    get_training_config,    ModelNotFoundError,from .model_selector import ("""- 27B model: 8x H100 GPUs with DeepSpeed ZeRO-3- 4B model: Single H100 GPUTraining is performed on Modal cloud GPUs:with support for both MedGemma 4B IT and MedGemma 27B IT models.This module provides distributed training orchestration using Ray Train,# 
+#
 # Usage:
 #   docker-compose up -d                    # Core services
 #   docker-compose --profile gpu up -d      # With GPU inference
@@ -103,6 +43,8 @@ services:
         - API_URL=http://api:8000
     container_name: medai-frontend
     restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3001}:3000"
     environment:
       - API_URL=http://api:8000
       - NODE_ENV=production
@@ -565,10 +507,9 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+          memory: 32G
         limits:
           memory: 64G
-        reservations:
-          memory: 32G
     profiles:
       - training
       - gpu

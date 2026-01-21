@@ -172,6 +172,8 @@ Examples:
   %(prog)s --recommended -o ./data          # Download starter datasets
   %(prog)s --dataset mimic_iv -o ./data \\
       --physionet-user USER --physionet-pass PASS
+  %(prog)s --dataset mimic_iv -o ./data --max-size 1.0 \\
+      --physionet-user USER --physionet-pass PASS  # Download up to 1GB
         """
     )
     
@@ -211,6 +213,12 @@ Examples:
         type=str,
         help="PhysioNet password"
     )
+    parser.add_argument(
+        "--max-size",
+        type=float,
+        default=None,
+        help="Maximum size to download in GB (for PhysioNet datasets)"
+    )
     
     args = parser.parse_args()
     
@@ -228,18 +236,66 @@ Examples:
     if args.recommended:
         success = download_recommended(output_dir)
     elif args.dataset:
-        success = download_dataset(
-            args.dataset,
-            output_dir,
-            force=args.force,
-            physionet_user=args.physionet_user,
-            physionet_pass=args.physionet_pass,
-        )
+        # Check if this is a PhysioNet dataset with size limit
+        if args.max_size and args.dataset in ["mimic_iv", "mimic_cxr"]:
+            success = download_physionet_limited(
+                args.dataset,
+                output_dir,
+                max_size_gb=args.max_size,
+                physionet_user=args.physionet_user,
+                physionet_pass=args.physionet_pass,
+            )
+        else:
+            success = download_dataset(
+                args.dataset,
+                output_dir,
+                force=args.force,
+                physionet_user=args.physionet_user,
+                physionet_pass=args.physionet_pass,
+            )
     else:
         parser.print_help()
         return 1
     
     return 0 if success else 1
+
+
+def download_physionet_limited(dataset_id: str, output_dir: Path, max_size_gb: float,
+                               physionet_user: str = None, physionet_pass: str = None) -> bool:
+    """Download PhysioNet dataset with size limit."""
+    from medai_compass.utils.dataset_downloader import DatasetDownloader
+    
+    username = physionet_user or os.environ.get("PHYSIONET_USERNAME")
+    password = physionet_pass or os.environ.get("PHYSIONET_PASSWORD")
+    
+    if not username or not password:
+        print("❌ PhysioNet credentials required.")
+        print("   Set --physionet-user and --physionet-pass, or environment variables:")
+        print("   PHYSIONET_USERNAME and PHYSIONET_PASSWORD")
+        return False
+    
+    print(f"\n📥 Downloading: {dataset_id} (max {max_size_gb}GB)")
+    print(f"   Output: {output_dir / dataset_id}")
+    print()
+    
+    downloader = DatasetDownloader(
+        output_dir=output_dir,
+        physionet_username=username,
+        physionet_password=password,
+    )
+    
+    def progress(msg, pct):
+        print(f"   {pct:5.1f}% | {msg}")
+    
+    downloader.set_progress_callback(progress)
+    
+    try:
+        path = downloader.download_physionet_limited(dataset_id, max_size_gb=max_size_gb)
+        print(f"\n✅ Downloaded to: {path}")
+        return True
+    except Exception as e:
+        print(f"\n❌ Download failed: {e}")
+        return False
 
 
 if __name__ == "__main__":

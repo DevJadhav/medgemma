@@ -42,10 +42,10 @@ export function ReviewModal({
     return null;
   }
 
-  const confidencePercent = escalation.confidence != null 
-    ? Math.round(escalation.confidence * 100) 
-    : escalation.confidence_score != null 
-      ? Math.round(escalation.confidence_score * 100) 
+  const confidencePercent = escalation.confidence != null
+    ? Math.round(escalation.confidence * 100)
+    : escalation.confidence_score != null
+      ? Math.round(escalation.confidence_score * 100)
       : null;
 
   const handleApprove = () => {
@@ -116,13 +116,12 @@ export function ReviewModal({
                 <div className="flex items-center gap-2">
                   <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
                     <div
-                      className={`h-full ${
-                        confidencePercent < 70
+                      className={`h-full ${confidencePercent < 70
                           ? 'bg-emergency-500'
                           : confidencePercent < 85
-                          ? 'bg-urgent-500'
-                          : 'bg-success-500'
-                      }`}
+                            ? 'bg-urgent-500'
+                            : 'bg-success-500'
+                        }`}
                       style={{ width: `${confidencePercent}%` }}
                     />
                   </div>
@@ -172,7 +171,7 @@ export function ReviewModal({
               Cancel
             </Button>
             <Button
-              variant="danger"
+              variant="destructive"
               onClick={handleReject}
               disabled={loading}
               loading={loading}

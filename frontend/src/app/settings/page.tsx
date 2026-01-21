@@ -132,14 +132,12 @@ function SettingRow({ setting, onUpdate }: { setting: Setting; onUpdate: (id: st
         return (
           <button
             onClick={() => onUpdate(setting.id, !setting.value)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              setting.value ? 'bg-primary-600' : 'bg-gray-300'
-            }`}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${setting.value ? 'bg-primary-600' : 'bg-gray-300'
+              }`}
           >
             <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                setting.value ? 'translate-x-6' : 'translate-x-1'
-              }`}
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${setting.value ? 'translate-x-6' : 'translate-x-1'
+                }`}
             />
           </button>
         );
@@ -314,7 +312,7 @@ export default function SettingsPage() {
                   Remove all cached data and reset the application. This cannot be undone.
                 </p>
               </div>
-              <Button variant="danger" size="sm">
+              <Button variant="destructive" size="sm">
                 Clear Data
               </Button>
             </div>

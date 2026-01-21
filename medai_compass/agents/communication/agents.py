@@ -62,6 +62,7 @@ class PatientMessage:
     message_id: str
     patient_id: str
     content: str
+    language: str = "en"
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
     attachments: list[str] = field(default_factory=list)
 

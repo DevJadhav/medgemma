@@ -12,13 +12,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install system dependencies
+# Install system dependencies (including postgres client and redis tools for health checks)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     git \
     wget \
     openssl \
+    postgresql-client \
+    redis-tools \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security
@@ -35,8 +37,8 @@ FROM base as dependencies
 # Install uv for fast package management
 RUN pip install uv
 
-# Copy dependency files
-COPY pyproject.toml uv.lock* ./
+# Copy dependency files and README
+COPY pyproject.toml uv.lock* README.md ./
 
 # Install dependencies using uv (with optional extras for production)
 RUN uv pip install --system . && \

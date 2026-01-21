@@ -79,21 +79,28 @@ export function Navigation({ pendingReviews = 0 }: NavigationProps) {
   ];
 
   return (
-    <nav className="bg-white shadow-sm border-b border-gray-200">
+    <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           {/* Logo */}
           <div className="flex items-center">
-            <Link href="/" className="flex items-center space-x-2">
-              <span className="text-2xl">🏥</span>
-              <span className="font-bold text-xl text-primary-600">
-                MedAI Compass
-              </span>
+            <Link href="/" className="flex items-center gap-3 group">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/25 group-hover:shadow-primary-500/40 transition-shadow">
+                <span className="text-xl">🏥</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="font-bold text-lg text-gray-900 tracking-tight">
+                  MedAI Compass
+                </span>
+                <span className="text-[10px] font-medium text-primary-600 uppercase tracking-wider">
+                  Medical AI Platform
+                </span>
+              </div>
             </Link>
           </div>
 
           {/* Navigation Items */}
-          <div className="hidden md:flex items-center space-x-1">
+          <div className="hidden md:flex items-center gap-1">
             {navItems.map((item) => {
               const isActive = pathname === item.href || 
                 (item.href !== '/' && pathname.startsWith(item.href));
@@ -103,18 +110,18 @@ export function Navigation({ pendingReviews = 0 }: NavigationProps) {
                   key={item.href}
                   href={item.href}
                   className={`
-                    flex items-center px-3 py-2 rounded-md text-sm font-medium
-                    transition-colors duration-200
+                    flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium
+                    transition-all duration-200
                     ${isActive 
-                      ? 'bg-primary-100 text-primary-700' 
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                      ? 'bg-primary-50 text-primary-700 shadow-sm' 
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                     }
                   `}
                 >
-                  <span className="mr-2">{item.icon}</span>
+                  <span className={isActive ? 'text-primary-600' : 'text-gray-400'}>{item.icon}</span>
                   {item.label}
                   {item.badge && item.badge > 0 && (
-                    <span className="ml-2 inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-urgent-500 rounded-full">
+                    <span className="ml-1 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-red-500 rounded-full shadow-sm">
                       {item.badge}
                     </span>
                   )}
@@ -149,7 +156,7 @@ function MobileMenu({ navItems, currentPath }: MobileMenuProps) {
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+        className="p-2.5 rounded-xl text-gray-600 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors"
         aria-label="Toggle menu"
       >
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -165,13 +172,13 @@ function MobileMenu({ navItems, currentPath }: MobileMenuProps) {
         <>
           {/* Backdrop */}
           <div 
-            className="fixed inset-0 z-10"
+            className="fixed inset-0 z-10 bg-black/20 backdrop-blur-sm"
             onClick={() => setIsOpen(false)}
           />
           
           {/* Menu */}
-          <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 z-20">
-            <div className="py-1">
+          <div className="absolute right-0 mt-3 w-56 bg-white rounded-2xl shadow-xl ring-1 ring-gray-100 z-20 overflow-hidden animate-fade-in">
+            <div className="py-2">
               {navItems.map((item) => {
                 const isActive = currentPath === item.href || 
                   (item.href !== '/' && currentPath.startsWith(item.href));
@@ -182,17 +189,18 @@ function MobileMenu({ navItems, currentPath }: MobileMenuProps) {
                     href={item.href}
                     onClick={() => setIsOpen(false)}
                     className={`
-                      flex items-center px-4 py-2 text-sm
+                      flex items-center gap-3 px-4 py-3 text-sm font-medium
+                      transition-colors duration-150
                       ${isActive 
-                        ? 'bg-primary-100 text-primary-700' 
-                        : 'text-gray-700 hover:bg-gray-100'
+                        ? 'bg-primary-50 text-primary-700' 
+                        : 'text-gray-700 hover:bg-gray-50'
                       }
                     `}
                   >
-                    <span className="mr-3">{item.icon}</span>
+                    <span className={isActive ? 'text-primary-600' : 'text-gray-400'}>{item.icon}</span>
                     {item.label}
                     {item.badge && item.badge > 0 && (
-                      <span className="ml-auto inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-urgent-500 rounded-full">
+                      <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-red-500 rounded-full">
                         {item.badge}
                       </span>
                     )}
@@ -224,19 +232,22 @@ export function Sidebar({ pendingReviews = 0 }: NavigationProps) {
   ];
 
   return (
-    <aside className="w-64 bg-white shadow-sm border-r border-gray-200 min-h-screen">
+    <aside className="w-64 bg-white/95 backdrop-blur-md border-r border-gray-100 min-h-screen flex flex-col">
       {/* Logo */}
-      <div className="p-4 border-b border-gray-200">
-        <Link href="/" className="flex items-center space-x-2">
-          <span className="text-2xl">🏥</span>
-          <span className="font-bold text-lg text-primary-600">
-            MedAI Compass
-          </span>
+      <div className="p-5 border-b border-gray-100">
+        <Link href="/" className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/25">
+            <span className="text-xl">🏥</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="font-bold text-gray-900">MedAI Compass</span>
+            <span className="text-[10px] font-medium text-primary-600 uppercase tracking-wider">Medical AI</span>
+          </div>
         </Link>
       </div>
 
       {/* Navigation */}
-      <nav className="p-4 space-y-1">
+      <nav className="p-4 space-y-1 flex-1">
         {navItems.map((item) => {
           const isActive = pathname === item.href || 
             (item.href !== '/' && pathname.startsWith(item.href));
@@ -246,18 +257,18 @@ export function Sidebar({ pendingReviews = 0 }: NavigationProps) {
               key={item.href}
               href={item.href}
               className={`
-                flex items-center px-3 py-2 rounded-md text-sm font-medium
-                transition-colors duration-200
+                flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
+                transition-all duration-200
                 ${isActive 
-                  ? 'bg-primary-100 text-primary-700' 
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  ? 'bg-primary-50 text-primary-700 shadow-sm' 
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                 }
               `}
             >
-              <span className="mr-3">{item.icon}</span>
+              <span className={isActive ? 'text-primary-600' : 'text-gray-400'}>{item.icon}</span>
               <span className="flex-1">{item.label}</span>
               {item.badge && item.badge > 0 && (
-                <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-urgent-500 rounded-full">
+                <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-red-500 rounded-full">
                   {item.badge}
                 </span>
               )}
@@ -267,14 +278,14 @@ export function Sidebar({ pendingReviews = 0 }: NavigationProps) {
       </nav>
 
       {/* Status indicator */}
-      <div className="absolute bottom-4 left-4 right-4">
-        <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-500">
-          <div className="flex items-center mb-1">
-            <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+      <div className="p-4 border-t border-gray-100">
+        <div className="bg-gray-50 rounded-xl p-4 text-xs">
+          <div className="flex items-center gap-2 text-gray-700 font-medium mb-1">
+            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
             API Connected
           </div>
           <div className="text-gray-400">
-            Polling every 30s
+            Auto-refresh every 30s
           </div>
         </div>
       </div>

@@ -27,7 +27,7 @@ const severityVariants: Record<string, 'emergency' | 'urgent' | 'info' | 'defaul
 
 function FindingCard({ finding, index }: { finding: DiagnosticFinding; index: number }) {
   const confidencePercent = Math.round(finding.confidence * 100);
-  
+
   return (
     <Card className="mb-3">
       <CardContent className="p-4">
@@ -40,10 +40,9 @@ function FindingCard({ finding, index }: { finding: DiagnosticFinding; index: nu
               </Badge>
             )}
           </div>
-          <span className={`text-sm font-medium ${
-            confidencePercent < 70 ? 'text-emergency-600' :
-            confidencePercent < 85 ? 'text-urgent-600' : 'text-success-600'
-          }`}>
+          <span className={`text-sm font-medium ${confidencePercent < 70 ? 'text-emergency-600' :
+              confidencePercent < 85 ? 'text-urgent-600' : 'text-success-600'
+            }`}>
             {confidencePercent}% confidence
           </span>
         </div>
@@ -80,7 +79,7 @@ export default function DiagnosticPage() {
     const reader = new FileReader();
     reader.onload = async () => {
       const base64 = (reader.result as string).split(',')[1];
-      
+
       const response = await analyzeImage({
         image_base64: base64,
         image_type: imageType,
@@ -115,8 +114,8 @@ export default function DiagnosticPage() {
 
         {/* Disclaimer */}
         <Alert variant="warning" className="mb-6">
-          <strong>Important:</strong> This tool is for demonstration purposes only. 
-          All AI-generated findings must be reviewed by qualified healthcare professionals 
+          <strong>Important:</strong> This tool is for demonstration purposes only.
+          All AI-generated findings must be reviewed by qualified healthcare professionals
           before any clinical decisions are made.
         </Alert>
 
@@ -143,7 +142,7 @@ export default function DiagnosticPage() {
                     <Button
                       key={type}
                       size="sm"
-                      variant={imageType === type ? 'primary' : 'outline'}
+                      variant={imageType === type ? 'default' : 'outline'}
                       onClick={() => setImageType(type)}
                     >
                       {imageTypeLabels[type]}
@@ -252,10 +251,9 @@ export default function DiagnosticPage() {
                     </div>
                     <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                       <div
-                        className={`h-full ${
-                          result.confidence < 0.7 ? 'bg-emergency-500' :
-                          result.confidence < 0.85 ? 'bg-urgent-500' : 'bg-success-500'
-                        }`}
+                        className={`h-full ${result.confidence < 0.7 ? 'bg-emergency-500' :
+                            result.confidence < 0.85 ? 'bg-urgent-500' : 'bg-success-500'
+                          }`}
                         style={{ width: `${result.confidence * 100}%` }}
                       />
                     </div>

@@ -15,7 +15,7 @@ import type {
   DashboardStats,
 } from '@/types/api';
 
-const API_BASE_URL = process.env.API_URL || 'http://localhost:8000';
+const API_BASE_URL = ''; // Always use relative paths to leverage Next.js rewrites or Nginx proxy
 
 // Polling interval in milliseconds (30 seconds)
 const POLLING_INTERVAL = 30000;
@@ -29,7 +29,7 @@ async function fetchAPI<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
-  
+
   const defaultHeaders: HeadersInit = {
     'Content-Type': 'application/json',
   };
@@ -196,7 +196,7 @@ export function useOrchestrator() {
     try {
       const params = new URLSearchParams({ message });
       if (patientId) params.append('patient_id', patientId);
-      
+
       const response = await fetchAPI<Record<string, unknown>>(
         `/api/v1/orchestrator/process?${params.toString()}`,
         { method: 'POST' }
@@ -240,16 +240,16 @@ export function useEscalations(
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  
+
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
 
   const fetchEscalations = useCallback(async () => {
     if (!mountedRef.current) return;
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
       const params = new URLSearchParams();
       if (filters.priority) params.append('priority', filters.priority);
@@ -257,12 +257,12 @@ export function useEscalations(
       if (filters.status) params.append('status_filter', filters.status);
       if (filters.limit) params.append('limit', filters.limit.toString());
       if (filters.offset) params.append('offset', filters.offset.toString());
-      
+
       const queryString = params.toString();
       const endpoint = queryString ? `/api/v1/escalations?${queryString}` : '/api/v1/escalations';
-      
+
       const response = await fetchAPI<EscalationsListResponse>(endpoint);
-      
+
       if (mountedRef.current) {
         // Convert timestamp strings to Date objects
         const escalationsWithDates = response.escalations.map(esc => ({
@@ -270,12 +270,12 @@ export function useEscalations(
           timestamp: new Date(esc.timestamp as unknown as string),
           reviewed_at: esc.reviewed_at ? new Date(esc.reviewed_at as unknown as string) : undefined,
         }));
-        
+
         setEscalations(escalationsWithDates);
         setTotal(response.total);
         setLastUpdated(new Date());
       }
-      
+
       return response;
     } catch (err) {
       if (mountedRef.current) {
@@ -292,15 +292,15 @@ export function useEscalations(
   // Start/stop polling
   useEffect(() => {
     mountedRef.current = true;
-    
+
     // Initial fetch
     fetchEscalations();
-    
+
     // Set up polling
     if (enablePolling) {
       pollingRef.current = setInterval(fetchEscalations, POLLING_INTERVAL);
     }
-    
+
     // Cleanup
     return () => {
       mountedRef.current = false;
@@ -340,22 +340,22 @@ export function useEscalation(escalationId: string | null) {
       setEscalation(null);
       return null;
     }
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
       const response = await fetchAPI<EscalationItem>(
         `/api/v1/escalations/${escalationId}`
       );
-      
+
       // Convert timestamps
       const escalationWithDates = {
         ...response,
         timestamp: new Date(response.timestamp as unknown as string),
         reviewed_at: response.reviewed_at ? new Date(response.reviewed_at as unknown as string) : undefined,
       };
-      
+
       setEscalation(escalationWithDates);
       return escalationWithDates;
     } catch (err) {
@@ -387,7 +387,7 @@ export function useReviewSubmission() {
   ): Promise<EscalationItem | null> => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const response = await fetchAPI<EscalationItem>(
         `/api/v1/escalations/${escalationId}/review`,
@@ -401,7 +401,7 @@ export function useReviewSubmission() {
           }),
         }
       );
-      
+
       return {
         ...response,
         timestamp: new Date(response.timestamp as unknown as string),
@@ -426,23 +426,23 @@ export function useEscalationStats(enablePolling: boolean = true) {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
 
   const fetchStats = useCallback(async () => {
     if (!mountedRef.current) return;
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
       const response = await fetchAPI<DashboardStats>('/api/v1/escalations/stats');
-      
+
       if (mountedRef.current) {
         setStats(response);
       }
-      
+
       return response;
     } catch (err) {
       if (mountedRef.current) {
@@ -458,15 +458,15 @@ export function useEscalationStats(enablePolling: boolean = true) {
 
   useEffect(() => {
     mountedRef.current = true;
-    
+
     // Initial fetch
     fetchStats();
-    
+
     // Set up polling
     if (enablePolling) {
       pollingRef.current = setInterval(fetchStats, POLLING_INTERVAL);
     }
-    
+
     return () => {
       mountedRef.current = false;
       if (pollingRef.current) {
