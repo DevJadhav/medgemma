@@ -347,6 +347,9 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-medai_compass}
       - POSTGRES_USER=${POSTGRES_USER:-medai}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - PHI_ENCRYPTION_KEY=${PHI_ENCRYPTION_KEY}
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
@@ -374,9 +377,13 @@ services:
       target: production
     container_name: medai-celery-beat
     restart: unless-stopped
-    command: celery -A medai_compass.workers.celery beat -l info
+    command: celery -A medai_compass.workers.celery beat -l info --schedule=/tmp/celerybeat-schedule
     environment:
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - PHI_ENCRYPTION_KEY=${PHI_ENCRYPTION_KEY}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     depends_on:
       - redis
     networks:

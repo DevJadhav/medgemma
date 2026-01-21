@@ -503,3 +503,152 @@ def create_3d_montage(
         montage[row * slice_h:(row + 1) * slice_h, col * slice_w:(col + 1) * slice_w] = s
 
     return montage
+
+
+class DicomProcessor:
+    """
+    High-level DICOM processing class for batch operations.
+    
+    Provides a unified interface for:
+    - Extracting metadata from DICOM files
+    - Extracting and normalizing pixel arrays
+    - Preprocessing images for MedGemma model input
+    """
+    
+    def __init__(self, target_size: tuple[int, int] = (896, 896)):
+        """
+        Initialize the DICOM processor.
+        
+        Args:
+            target_size: Target image size for model input (default 896x896 for MedGemma)
+        """
+        self.target_size = target_size
+    
+    def extract_metadata(self, dicom_path: str | Path) -> dict[str, Any]:
+        """
+        Extract metadata from a DICOM file.
+        
+        Args:
+            dicom_path: Path to DICOM file
+            
+        Returns:
+            Dictionary containing DICOM metadata
+        """
+        try:
+            import pydicom
+            
+            ds = pydicom.dcmread(str(dicom_path), force=True)
+            
+            return {
+                "patient_id": str(getattr(ds, "PatientID", "UNKNOWN")),
+                "study_date": str(getattr(ds, "StudyDate", "")),
+                "study_description": str(getattr(ds, "StudyDescription", "")),
+                "study_instance_uid": str(getattr(ds, "StudyInstanceUID", "")),
+                "series_instance_uid": str(getattr(ds, "SeriesInstanceUID", "")),
+                "sop_instance_uid": str(getattr(ds, "SOPInstanceUID", "")),
+                "modality": str(getattr(ds, "Modality", "UNKNOWN")),
+                "series_description": str(getattr(ds, "SeriesDescription", "")),
+                "institution_name": str(getattr(ds, "InstitutionName", "")),
+                "manufacturer": str(getattr(ds, "Manufacturer", "")),
+                "rows": int(getattr(ds, "Rows", 0)),
+                "columns": int(getattr(ds, "Columns", 0)),
+            }
+        except Exception as e:
+            raise DicomParseError(f"Failed to extract metadata from {dicom_path}: {e}")
+    
+    def extract_pixel_array(self, dicom_path: str | Path, normalize: bool = True) -> np.ndarray | None:
+        """
+        Extract pixel array from a DICOM file.
+        
+        Args:
+            dicom_path: Path to DICOM file
+            normalize: Whether to normalize pixel values to 0-1 range
+            
+        Returns:
+            Pixel array as numpy array, or None if no pixel data
+        """
+        try:
+            import pydicom
+            
+            ds = pydicom.dcmread(str(dicom_path), force=True)
+            
+            if not hasattr(ds, 'PixelData'):
+                return None
+            
+            pixel_array = ds.pixel_array.astype(np.float32)
+            
+            # Apply rescale slope/intercept for CT images
+            if hasattr(ds, 'RescaleSlope') and hasattr(ds, 'RescaleIntercept'):
+                pixel_array = pixel_array * ds.RescaleSlope + ds.RescaleIntercept
+            
+            if normalize:
+                # Normalize to 0-1 range
+                min_val = pixel_array.min()
+                max_val = pixel_array.max()
+                if max_val > min_val:
+                    pixel_array = (pixel_array - min_val) / (max_val - min_val)
+                else:
+                    pixel_array = np.zeros_like(pixel_array)
+            
+            return pixel_array
+            
+        except Exception as e:
+            raise DicomParseError(f"Failed to extract pixel array from {dicom_path}: {e}")
+    
+    def preprocess_for_medgemma(self, pixel_array: np.ndarray) -> np.ndarray:
+        """
+        Preprocess pixel array for MedGemma model input.
+        
+        Args:
+            pixel_array: Input pixel array (can be 2D grayscale or 3D RGB)
+            
+        Returns:
+            Preprocessed array of shape (target_size, target_size, 3)
+        """
+        from PIL import Image
+        
+        # Handle 2D grayscale images
+        if pixel_array.ndim == 2:
+            # Convert to RGB by repeating channels
+            pixel_array = np.stack([pixel_array] * 3, axis=-1)
+        elif pixel_array.ndim == 3 and pixel_array.shape[-1] == 1:
+            pixel_array = np.repeat(pixel_array, 3, axis=-1)
+        
+        # Normalize to 0-255 for PIL
+        if pixel_array.max() <= 1.0:
+            pixel_array = (pixel_array * 255).astype(np.uint8)
+        else:
+            pixel_array = pixel_array.astype(np.uint8)
+        
+        # Resize to target size
+        img = Image.fromarray(pixel_array)
+        img = img.resize(self.target_size, Image.Resampling.LANCZOS)
+        
+        # Convert back to numpy and normalize to 0-1
+        result = np.array(img).astype(np.float32) / 255.0
+        
+        return result
+    
+    def process_file(self, dicom_path: str | Path) -> dict[str, Any]:
+        """
+        Process a single DICOM file and return all relevant data.
+        
+        Args:
+            dicom_path: Path to DICOM file
+            
+        Returns:
+            Dictionary with metadata, pixel_array, and preprocessed_array
+        """
+        metadata = self.extract_metadata(dicom_path)
+        pixel_array = self.extract_pixel_array(dicom_path)
+        
+        preprocessed = None
+        if pixel_array is not None:
+            preprocessed = self.preprocess_for_medgemma(pixel_array)
+        
+        return {
+            "metadata": metadata,
+            "pixel_array": pixel_array,
+            "preprocessed": preprocessed,
+        }
+
