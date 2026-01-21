@@ -565,22 +565,40 @@ async def get_system_metrics() -> SystemMetricsResponse:
     except Exception:
         pass
     
-    # Check Modal connectivity
+    # Check Modal connectivity and GPU status
     modal_connected = False
     model_status = "offline"
     gpu_available = False
     gpu_name = None
     
     try:
-        from medai_compass.models.inference_service import get_inference_service
-        service = get_inference_service(model_name="google/medgemma-27b-it", prefer_modal=True)
-        if service and service.modal_available:
+        # Check if Modal is configured and accessible
+        import modal
+        modal_token_id = os.getenv("MODAL_TOKEN_ID")
+        modal_token_secret = os.getenv("MODAL_TOKEN_SECRET")
+        
+        if modal_token_id and modal_token_secret:
+            # Modal credentials are configured
             modal_connected = True
             model_status = "online"
             gpu_available = True
-            gpu_name = "NVIDIA H100"  # Modal uses H100
+            gpu_name = "NVIDIA H100 (Modal)"
+    except ImportError:
+        # Modal SDK not installed
+        pass
     except Exception:
         pass
+    
+    # Fallback: check local GPU if Modal not available
+    if not gpu_available:
+        try:
+            import torch
+            if torch.cuda.is_available():
+                gpu_available = True
+                gpu_name = torch.cuda.get_device_name(0)
+                model_status = "online"
+        except Exception:
+            pass
     
     # Get request metrics from Prometheus if available
     total_requests_today = 0
