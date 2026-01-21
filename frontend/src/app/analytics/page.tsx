@@ -4,8 +4,8 @@ import React, { useMemo } from 'react';
 import { Navigation } from '@/components/Navigation';
 import { Card, CardContent, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { useEscalationStats, useEscalations } from '@/hooks/useApi';
-import { Loader2 } from 'lucide-react';
+import { useEscalationStats, useEscalations, useSystemMetrics } from '@/hooks/useApi';
+import { Loader2, CheckCircle, XCircle, Clock, Cpu, Database, Server, Activity } from 'lucide-react';
 import { format, subDays, isSameDay, parseISO } from 'date-fns';
 
 function MetricCard({
@@ -69,6 +69,8 @@ export default function AnalyticsPage() {
   const { stats, loading: statsLoading } = useEscalationStats(false);
   // Fetch a larger list of escalations to compute client-side analytics
   const { escalations, loading: listLoading } = useEscalations({ limit: 100 });
+  // Real-time system metrics with 10s polling
+  const { metrics: systemMetrics, loading: metricsLoading } = useSystemMetrics(true);
 
   const analytics = useMemo(() => {
     if (!escalations) return null;
@@ -130,7 +132,15 @@ export default function AnalyticsPage() {
   }, [escalations]);
 
 
-  const loading = statsLoading || listLoading;
+  const loading = statsLoading || listLoading || metricsLoading;
+
+  // Format uptime
+  const formatUptime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${minutes}m`;
+  };
 
   if (loading) {
     return (
@@ -232,16 +242,121 @@ export default function AnalyticsPage() {
           </Card>
         </div>
 
+        {/* System Health & Performance */}
+        <Card className="overflow-hidden mb-8">
+          <CardHeader className="border-b bg-gray-50/50">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">System Health & Performance</h2>
+              <Badge variant={systemMetrics?.model_status === 'online' ? 'success' : 'warning'}>
+                {systemMetrics?.model_status === 'online' ? 'All Systems Operational' : 'Degraded'}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              {/* Model Status */}
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${systemMetrics?.model_status === 'online' ? 'bg-success-100' : 'bg-gray-100'}`}>
+                  <Cpu className={`w-5 h-5 ${systemMetrics?.model_status === 'online' ? 'text-success-600' : 'text-gray-400'}`} />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">MedGemma 27B</p>
+                  <div className="flex items-center gap-1">
+                    {systemMetrics?.model_status === 'online' ? (
+                      <CheckCircle className="w-4 h-4 text-success-600" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-gray-400" />
+                    )}
+                    <span className="text-sm font-medium capitalize">{systemMetrics?.model_status || 'unknown'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* GPU Status */}
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${systemMetrics?.gpu_available ? 'bg-success-100' : 'bg-gray-100'}`}>
+                  <Server className={`w-5 h-5 ${systemMetrics?.gpu_available ? 'text-success-600' : 'text-gray-400'}`} />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">GPU</p>
+                  <p className="text-sm font-medium">{systemMetrics?.gpu_name || 'Not Available'}</p>
+                </div>
+              </div>
+
+              {/* Database */}
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${systemMetrics?.postgres_connected ? 'bg-success-100' : 'bg-emergency-100'}`}>
+                  <Database className={`w-5 h-5 ${systemMetrics?.postgres_connected ? 'text-success-600' : 'text-emergency-600'}`} />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">PostgreSQL</p>
+                  <div className="flex items-center gap-1">
+                    {systemMetrics?.postgres_connected ? (
+                      <CheckCircle className="w-4 h-4 text-success-600" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-emergency-600" />
+                    )}
+                    <span className="text-sm font-medium">{systemMetrics?.postgres_connected ? 'Connected' : 'Disconnected'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Redis Cache */}
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${systemMetrics?.redis_connected ? 'bg-success-100' : 'bg-urgent-100'}`}>
+                  <Activity className={`w-5 h-5 ${systemMetrics?.redis_connected ? 'text-success-600' : 'text-urgent-600'}`} />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Redis Cache</p>
+                  <div className="flex items-center gap-1">
+                    {systemMetrics?.redis_connected ? (
+                      <CheckCircle className="w-4 h-4 text-success-600" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-urgent-600" />
+                    )}
+                    <span className="text-sm font-medium">{systemMetrics?.redis_connected ? 'Connected' : 'Disconnected'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Performance Metrics Row */}
+            <div className="mt-6 pt-6 border-t border-gray-100 grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="text-center">
+                <p className="text-2xl font-bold text-gray-900">{formatUptime(systemMetrics?.uptime_seconds || 0)}</p>
+                <p className="text-xs text-gray-500">Uptime</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-gray-900">{systemMetrics?.active_sessions || 0}</p>
+                <p className="text-xs text-gray-500">Active Sessions</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-gray-900">{systemMetrics?.avg_response_time_ms?.toFixed(0) || 0}ms</p>
+                <p className="text-xs text-gray-500">Avg Response</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-gray-900">{systemMetrics?.inference_queue_size || 0}</p>
+                <p className="text-xs text-gray-500">Queue Size</p>
+              </div>
+              <div className="text-center">
+                <p className={`text-2xl font-bold ${(systemMetrics?.recent_errors || 0) > 0 ? 'text-emergency-600' : 'text-success-600'}`}>
+                  {systemMetrics?.recent_errors || 0}
+                </p>
+                <p className="text-xs text-gray-500">Recent Errors</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Note on Real Data */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex gap-3 text-sm text-blue-800">
           <span className="text-lg">ℹ️</span>
           <div>
             <span className="font-semibold">Data Integrity:</span> This dashboard now reflects live production data directly from the MedAI Compass escalation engine.
-            Metrics are calculated in real-time based on active and historical case files.
+            Metrics are calculated in real-time based on active and historical case files. System metrics refresh every 10 seconds.
           </div>
         </div>
       </main>
     </div>
   );
 }
-

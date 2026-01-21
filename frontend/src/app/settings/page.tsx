@@ -126,17 +126,22 @@ const defaultSections: SettingSection[] = [
 ];
 
 function SettingRow({ setting, onUpdate }: { setting: Setting; onUpdate: (id: string, value: any) => void }) {
+  const isToggleOn = Boolean(setting.value);
+  
   const renderInput = () => {
     switch (setting.type) {
       case 'toggle':
         return (
           <button
-            onClick={() => onUpdate(setting.id, !setting.value)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${setting.value ? 'bg-primary-600' : 'bg-gray-300'
+            type="button"
+            role="switch"
+            aria-checked={isToggleOn}
+            onClick={() => onUpdate(setting.id, !isToggleOn)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${isToggleOn ? 'bg-primary-600' : 'bg-gray-300'
               }`}
           >
             <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${setting.value ? 'translate-x-6' : 'translate-x-1'
+              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${isToggleOn ? 'translate-x-6' : 'translate-x-1'
                 }`}
             />
           </button>
@@ -144,9 +149,9 @@ function SettingRow({ setting, onUpdate }: { setting: Setting; onUpdate: (id: st
       case 'select':
         return (
           <select
-            value={setting.value as string}
+            value={String(setting.value)}
             onChange={(e) => onUpdate(setting.id, e.target.value)}
-            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
           >
             {setting.options?.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -160,7 +165,10 @@ function SettingRow({ setting, onUpdate }: { setting: Setting; onUpdate: (id: st
           <input
             type="number"
             value={setting.value as number}
-            onChange={(e) => onUpdate(setting.id, parseInt(e.target.value))}
+            onChange={(e) => {
+              const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+              onUpdate(setting.id, isNaN(val) ? 0 : val);
+            }}
             className="w-24 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         );
@@ -168,7 +176,7 @@ function SettingRow({ setting, onUpdate }: { setting: Setting; onUpdate: (id: st
         return (
           <input
             type="text"
-            value={setting.value as string}
+            value={String(setting.value ?? '')}
             onChange={(e) => onUpdate(setting.id, e.target.value)}
             className="w-48 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
@@ -188,38 +196,60 @@ function SettingRow({ setting, onUpdate }: { setting: Setting; onUpdate: (id: st
 }
 
 export default function SettingsPage() {
-  const [sections, setSections] = useState(defaultSections);
+  const [sections, setSections] = useState<SettingSection[]>(() => {
+    // Try to load from localStorage first
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('medai_settings');
+        if (saved) {
+          return JSON.parse(saved);
+        }
+      } catch (e) {
+        console.error('Failed to load settings from localStorage:', e);
+      }
+    }
+    return JSON.parse(JSON.stringify(defaultSections));
+  });
   const [saved, setSaved] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
-  const handleUpdate = (sectionId: string, settingId: string, value: any) => {
-    setSections(prev => prev.map(section => {
-      if (section.id !== sectionId) return section;
-      return {
-        ...section,
-        settings: section.settings.map(setting => {
-          if (setting.id !== settingId) return setting;
-          return { ...setting, value };
-        }),
-      };
-    }));
+  const handleUpdate = React.useCallback((sectionId: string, settingId: string, value: any) => {
+    setSections(prev => {
+      const newSections = prev.map(section => {
+        if (section.id !== sectionId) return section;
+        return {
+          ...section,
+          settings: section.settings.map(setting => {
+            if (setting.id !== settingId) return setting;
+            return { ...setting, value };
+          }),
+        };
+      });
+      return newSections;
+    });
     setHasChanges(true);
     setSaved(false);
-  };
+  }, []);
 
-  const handleSave = () => {
+  const handleSave = React.useCallback(() => {
     // In production, this would call the API to save settings
     console.log('Saving settings:', sections);
+    // Save to localStorage for persistence
+    try {
+      localStorage.setItem('medai_settings', JSON.stringify(sections));
+    } catch (e) {
+      console.error('Failed to save settings to localStorage:', e);
+    }
     setSaved(true);
     setHasChanges(false);
     setTimeout(() => setSaved(false), 3000);
-  };
+  }, [sections]);
 
-  const handleReset = () => {
-    setSections(defaultSections);
+  const handleReset = React.useCallback(() => {
+    setSections(JSON.parse(JSON.stringify(defaultSections)));
     setHasChanges(false);
     setSaved(false);
-  };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">

@@ -86,7 +86,7 @@ inference:
     
   # Auto-scaling
   autoscaling:
-    min_containers: 0
+    min_containers: 1  # Keep 1 warm container to eliminate cold starts (~$3.58/hr)
     max_containers: 10
     scaledown_delay: 300  # 5 min before scaling down
     

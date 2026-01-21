@@ -13,6 +13,7 @@ import type {
   EscalationItem,
   ReviewDecision,
   DashboardStats,
+  SystemMetrics,
 } from '@/types/api';
 
 const API_BASE_URL = ''; // Always use relative paths to leverage Next.js rewrites or Nginx proxy
@@ -477,4 +478,65 @@ export function useEscalationStats(enablePolling: boolean = true) {
   }, [fetchStats, enablePolling]);
 
   return { stats, loading, error, refresh: fetchStats };
+}
+
+// =============================================================================
+// System Metrics Hook with 10s Polling for Real-Time Dashboard
+// =============================================================================
+
+export function useSystemMetrics(enablePolling: boolean = true) {
+  const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const mountedRef = useRef(true);
+
+  const fetchMetrics = useCallback(async () => {
+    if (!mountedRef.current) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetchAPI<SystemMetrics>('/api/v1/system/metrics');
+
+      if (mountedRef.current) {
+        setMetrics(response);
+      }
+
+      return response;
+    } catch (err) {
+      if (mountedRef.current) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch system metrics');
+      }
+      return null;
+    } finally {
+      if (mountedRef.current) {
+        setLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+
+    // Initial fetch
+    fetchMetrics();
+
+    // Set up faster polling (10s) for real-time metrics
+    if (enablePolling) {
+      pollingRef.current = setInterval(fetchMetrics, 10000);
+    }
+
+    return () => {
+      mountedRef.current = false;
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [fetchMetrics, enablePolling]);
+
+  return { metrics, loading, error, refresh: fetchMetrics };
 }

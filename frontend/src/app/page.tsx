@@ -15,7 +15,7 @@ export default function Home() {
             <div className="mx-auto max-w-2xl text-center">
               <div className="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-sm font-medium text-primary mb-8 animate-fade-in backdrop-blur-sm">
                 <span className="flex h-2 w-2 rounded-full bg-primary mr-2 animate-pulse"></span>
-                Powered by Google MedGemma 2
+                Powered by Google MedGemma
               </div>
               <h1 className="text-4xl font-display font-medium tracking-tight text-foreground sm:text-6xl mb-6 bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 animate-slide-up">
                 Advanced Medical AI <br />

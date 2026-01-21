@@ -251,14 +251,15 @@ export default function DiagnosticPage() {
                   <div className="bg-gray-50 rounded-lg p-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-gray-700">Overall Confidence</span>
-                      <span className="text-lg font-bold">{Math.round(result.confidence * 100)}%</span>
+                      <span className="text-lg font-bold">{Math.round((result.confidence || 0) * 100)}%</span>
                     </div>
                     <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                       <div
-                        className={`h-full ${result.confidence < 0.7 ? 'bg-emergency-500' :
-                            result.confidence < 0.85 ? 'bg-urgent-500' : 'bg-success-500'
-                          }`}
-                        style={{ width: `${result.confidence * 100}%` }}
+                        className={`h-full transition-all duration-500 ease-out ${
+                          (result.confidence || 0) < 0.7 ? 'bg-emergency-500' :
+                          (result.confidence || 0) < 0.85 ? 'bg-urgent-500' : 'bg-success-500'
+                        }`}
+                        style={{ width: `${Math.max((result.confidence || 0) * 100, 0)}%`, minWidth: (result.confidence || 0) > 0 ? '4px' : '0' }}
                       />
                     </div>
                   </div>

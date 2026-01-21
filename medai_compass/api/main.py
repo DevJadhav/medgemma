@@ -197,6 +197,24 @@ class ErrorResponse(BaseModel):
     request_id: Optional[str] = None
 
 
+class SystemMetricsResponse(BaseModel):
+    """System metrics for analytics dashboard."""
+    
+    timestamp: str
+    uptime_seconds: float
+    active_sessions: int
+    total_requests_today: int
+    avg_response_time_ms: float
+    model_status: str  # "online", "warming", "offline"
+    gpu_available: bool
+    gpu_name: Optional[str] = None
+    redis_connected: bool
+    postgres_connected: bool
+    modal_connected: bool
+    inference_queue_size: int
+    recent_errors: int
+
+
 # =============================================================================
 # Escalation Models
 # =============================================================================
@@ -488,6 +506,120 @@ async def metrics():
         )
 
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+# Track API startup time for uptime calculation
+_api_start_time = time.time()
+_request_times: list[float] = []  # Recent request times for avg calculation
+_error_count = 0
+
+
+@app.get(
+    "/api/v1/system/metrics",
+    response_model=SystemMetricsResponse,
+    tags=["Monitoring"],
+)
+async def get_system_metrics() -> SystemMetricsResponse:
+    """
+    Get real-time system metrics for the analytics dashboard.
+    
+    Returns comprehensive system health and performance data including:
+    - Service uptime and active sessions
+    - Model and GPU status
+    - Database and cache connectivity
+    - Request throughput and latency
+    """
+    global _request_times, _error_count
+    
+    # Calculate uptime
+    uptime = time.time() - _api_start_time
+    
+    # Check Redis connection and get active sessions
+    active_sessions = 0
+    redis_connected = redis_manager.is_connected
+    if redis_connected and redis_manager.client:
+        try:
+            # Count session keys
+            keys = await redis_manager.client.keys("session:*")
+            active_sessions = len(keys) if keys else 0
+        except Exception:
+            pass
+    
+    # Check PostgreSQL connection using asyncpg
+    postgres_connected = False
+    try:
+        import asyncpg
+        postgres_host = os.getenv("POSTGRES_HOST", "localhost")
+        postgres_password = os.getenv("POSTGRES_PASSWORD", "")
+        if postgres_host and postgres_password:
+            conn = await asyncpg.connect(
+                host=postgres_host,
+                port=int(os.getenv("POSTGRES_PORT", "5432")),
+                user=os.getenv("POSTGRES_USER", "medai"),
+                password=postgres_password,
+                database=os.getenv("POSTGRES_DB", "medai_compass"),
+                timeout=2
+            )
+            await conn.close()
+            postgres_connected = True
+    except Exception:
+        pass
+    
+    # Check Modal connectivity
+    modal_connected = False
+    model_status = "offline"
+    gpu_available = False
+    gpu_name = None
+    
+    try:
+        from medai_compass.models.inference_service import get_inference_service
+        service = get_inference_service(model_name="google/medgemma-27b-it", prefer_modal=True)
+        if service and service.modal_available:
+            modal_connected = True
+            model_status = "online"
+            gpu_available = True
+            gpu_name = "NVIDIA H100"  # Modal uses H100
+    except Exception:
+        pass
+    
+    # Get request metrics from Prometheus if available
+    total_requests_today = 0
+    avg_response_time_ms = 0.0
+    
+    if PROMETHEUS_AVAILABLE:
+        try:
+            # Get total request count (approximate for today)
+            total_requests_today = int(REQUEST_COUNT._metrics.get((), None) or 0) if hasattr(REQUEST_COUNT, '_metrics') else 0
+        except Exception:
+            pass
+    
+    # Calculate average response time from recent requests
+    if _request_times:
+        avg_response_time_ms = sum(_request_times[-100:]) / len(_request_times[-100:]) * 1000
+    
+    # Get inference queue size (approximate)
+    inference_queue_size = 0
+    if PROMETHEUS_AVAILABLE:
+        try:
+            inference_queue_size = int(ACTIVE_REQUESTS._value._value) if hasattr(ACTIVE_REQUESTS, '_value') else 0
+        except Exception:
+            pass
+    
+    return SystemMetricsResponse(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        uptime_seconds=uptime,
+        active_sessions=active_sessions,
+        total_requests_today=total_requests_today,
+        avg_response_time_ms=avg_response_time_ms,
+        model_status=model_status,
+        gpu_available=gpu_available,
+        gpu_name=gpu_name,
+        redis_connected=redis_connected,
+        postgres_connected=postgres_connected,
+        modal_connected=modal_connected,
+        inference_queue_size=inference_queue_size,
+        recent_errors=_error_count
+    )
 
 
 # =============================================================================
@@ -957,6 +1089,137 @@ async def get_escalation_stats():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get stats: {str(e)}",
+        )
+
+
+@app.post(
+    "/api/v1/analytics/seed-demo",
+    tags=["Analytics"],
+)
+async def seed_demo_analytics():
+    """
+    Seed the escalation store with demo data for analytics dashboard.
+    
+    Creates sample escalations across different statuses, priorities,
+    and agent types to populate the analytics visualizations.
+    """
+    import uuid
+    from datetime import timedelta
+    
+    demo_escalations = [
+        # Pending escalations
+        {
+            "request_id": str(uuid.uuid4()),
+            "reason": "critical_finding",
+            "priority": "high",
+            "patient_id": "DEMO-001",
+            "agent_type": "diagnostic",
+            "confidence_score": 0.92,
+            "diagnostic_result": {
+                "findings": [{"finding": "Possible pneumothorax", "severity": "high", "confidence": 0.92}],
+                "report": "AI-generated report indicating potential pneumothorax requiring urgent review."
+            },
+        },
+        {
+            "request_id": str(uuid.uuid4()),
+            "reason": "low_confidence",
+            "priority": "medium",
+            "patient_id": "DEMO-002",
+            "agent_type": "diagnostic",
+            "confidence_score": 0.65,
+            "diagnostic_result": {
+                "findings": [{"finding": "Unclear opacity in right lower lobe", "severity": "medium", "confidence": 0.65}],
+                "report": "Inconclusive findings requiring specialist review."
+            },
+        },
+        {
+            "request_id": str(uuid.uuid4()),
+            "reason": "safety_concern",
+            "priority": "high",
+            "patient_id": "DEMO-003",
+            "agent_type": "communication",
+            "confidence_score": 0.88,
+            "original_message": "Patient reported severe chest pain and difficulty breathing",
+            "communication_result": {"triage_level": "EMERGENCY", "response": "Emergency protocol initiated"},
+        },
+        {
+            "request_id": str(uuid.uuid4()),
+            "reason": "manual_request",
+            "priority": "low",
+            "patient_id": "DEMO-004",
+            "agent_type": "workflow",
+            "confidence_score": 0.95,
+            "workflow_result": {"type": "prior_auth", "status": "requires_review"},
+        },
+        # More pending for variety
+        {
+            "request_id": str(uuid.uuid4()),
+            "reason": "critical_finding",
+            "priority": "high",
+            "patient_id": "DEMO-005",
+            "agent_type": "diagnostic",
+            "confidence_score": 0.89,
+            "diagnostic_result": {
+                "findings": [{"finding": "Suspected cardiomegaly", "severity": "high", "confidence": 0.89}],
+            },
+        },
+        {
+            "request_id": str(uuid.uuid4()),
+            "reason": "low_confidence",
+            "priority": "medium",
+            "patient_id": "DEMO-006",
+            "agent_type": "diagnostic",
+            "confidence_score": 0.58,
+        },
+    ]
+    
+    created_count = 0
+    reviewed_count = 0
+    
+    try:
+        # Create demo escalations
+        for demo in demo_escalations:
+            escalation_store.create(**demo)
+            created_count += 1
+        
+        # Get all escalations and review some to create variety in stats
+        all_escalations = escalation_store.list_pending(limit=100)
+        
+        # Review approximately half to show approved/rejected stats
+        for i, esc in enumerate(all_escalations[:4]):
+            if i < 2:
+                # Approve first 2
+                escalation_store.submit_review(
+                    escalation_id=esc["id"],
+                    decision="approve",
+                    reviewer_id="DEMO-CLINICIAN-001",
+                    notes="Demo approval for analytics testing"
+                )
+                reviewed_count += 1
+            elif i < 3:
+                # Reject 1
+                escalation_store.submit_review(
+                    escalation_id=esc["id"],
+                    decision="reject",
+                    reviewer_id="DEMO-CLINICIAN-002",
+                    notes="Demo rejection - false positive"
+                )
+                reviewed_count += 1
+            # Leave the rest as pending - no need for in_review status
+        
+        stats = escalation_store.get_stats()
+        
+        return {
+            "message": "Demo analytics data seeded successfully",
+            "created_escalations": created_count,
+            "reviewed_escalations": reviewed_count,
+            "current_stats": stats
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to seed demo data: {str(e)}",
         )
 
 

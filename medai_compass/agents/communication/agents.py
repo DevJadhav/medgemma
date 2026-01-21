@@ -374,7 +374,7 @@ class HealthEducatorAgent:
         
         # Try to use MedGemma for intelligent response
         try:
-            from medai_compass.models.inference_service import MedGemmaInferenceService
+            from medai_compass.models.inference_service import get_inference_service
             
             # Create system prompt for patient communication
             system_prompt = """You are a helpful healthcare assistant providing general health information to patients.
@@ -399,8 +399,8 @@ Important: Do NOT provide specific medical diagnoses or treatment recommendation
             prompt_parts.append("\nPlease provide a helpful, empathetic response with general health information.")
             user_prompt = "\n".join(prompt_parts)
             
-            # Create inference service
-            inference_service = MedGemmaInferenceService(
+            # Use singleton inference service for better performance (avoids re-initialization)
+            inference_service = get_inference_service(
                 model_name="google/medgemma-27b-it",
                 prefer_modal=True
             )

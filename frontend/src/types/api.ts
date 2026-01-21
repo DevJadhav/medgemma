@@ -217,3 +217,19 @@ export interface DashboardStats {
   average_response_time_ms?: number;
   escalation_rate?: number;
 }
+
+export interface SystemMetrics {
+  timestamp: string;
+  uptime_seconds: number;
+  active_sessions: number;
+  total_requests_today: number;
+  avg_response_time_ms: number;
+  model_status: 'online' | 'warming' | 'offline';
+  gpu_available: boolean;
+  gpu_name?: string;
+  redis_connected: boolean;
+  postgres_connected: boolean;
+  modal_connected: boolean;
+  inference_queue_size: number;
+  recent_errors: number;
+}
