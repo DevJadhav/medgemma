@@ -23,7 +23,7 @@ export const TRIAGE_COLORS: Record<TriageLevel, { bg: string; text: string; bord
 };
 
 export const TRIAGE_LABELS: Record<TriageLevel, string> = {
-  EMERGENCY: 'Emergency - Call 911',
+  EMERGENCY: 'Emergency - Call 112',
   URGENT: 'Urgent - Same Day',
   SOON: 'Soon - 24-48 Hours',
   ROUTINE: 'Routine',

@@ -365,7 +365,83 @@ class HealthEducatorAgent:
         query: str,
         context: Optional[ConversationContext]
     ) -> str:
-        """Generate a general response for unmatched queries."""
+        """Generate a general response using MedGemma for unmatched queries."""
+        import asyncio
+        import concurrent.futures
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        # Try to use MedGemma for intelligent response
+        try:
+            from medai_compass.models.inference_service import MedGemmaInferenceService
+            
+            # Create system prompt for patient communication
+            system_prompt = """You are a helpful healthcare assistant providing general health information to patients.
+Your role is to:
+1. Provide helpful, accurate health information in a caring and empathetic tone
+2. Encourage patients to consult their healthcare provider for personalized advice
+3. Be clear about limitations - you cannot diagnose conditions or replace a doctor
+4. Use simple, accessible language that patients can understand
+5. If the question is about symptoms, provide general information but emphasize the importance of professional evaluation
+
+Important: Do NOT provide specific medical diagnoses or treatment recommendations. Always encourage professional consultation."""
+
+            # Build context-aware prompt
+            prompt_parts = [f"Patient question: {query}"]
+            
+            if context:
+                if context.active_conditions:
+                    prompt_parts.append(f"Patient's known conditions: {', '.join(context.active_conditions)}")
+                if context.current_medications:
+                    prompt_parts.append(f"Current medications: {', '.join(context.current_medications)}")
+            
+            prompt_parts.append("\nPlease provide a helpful, empathetic response with general health information.")
+            user_prompt = "\n".join(prompt_parts)
+            
+            # Create inference service
+            inference_service = MedGemmaInferenceService(
+                model_name="google/medgemma-27b-it",
+                prefer_modal=True
+            )
+            
+            # Run async inference in a separate thread
+            def run_async_inference():
+                """Run inference in a new event loop in a separate thread."""
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    return loop.run_until_complete(
+                        inference_service.generate(
+                            prompt=user_prompt,
+                            max_tokens=512,
+                            temperature=0.7,
+                            system_prompt=system_prompt
+                        )
+                    )
+                finally:
+                    loop.close()
+            
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(run_async_inference)
+                result = future.result(timeout=180)  # 3 minute timeout for Modal cold starts
+            
+            if result.error:
+                logger.warning(f"MedGemma inference error: {result.error}")
+                return self._fallback_response()
+            
+            if result.response:
+                logger.info(f"MedGemma response generated via {result.backend}")
+                return result.response
+            else:
+                return self._fallback_response()
+                
+        except Exception as e:
+            logger.warning(f"Failed to use MedGemma for response: {e}")
+            return self._fallback_response()
+    
+    def _fallback_response(self) -> str:
+        """Fallback response when MedGemma is unavailable."""
         return (
             "Thank you for your question. For the most accurate and personalized "
             "advice regarding your health concerns, I recommend discussing this "

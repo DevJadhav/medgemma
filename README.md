@@ -48,13 +48,44 @@ MedAI Compass is a **HIPAA-compliant multi-agent platform** that integrates Goog
 
 ## 🚀 Quick Start
 
-```bash
-# Clone
-git clone https://github.com/DevJadhav/medgemma.git
-cd medgemma
+### Option 1: Production with Modal GPU (Recommended)
 
-# Install
-pip install uv && uv sync
+Run MedGemma 27B on NVIDIA H100 GPUs via Modal cloud:
+
+```bash
+# 1. Clone and install
+git clone https://github.com/DevJadhav/medgemma.git
+cd medgemma && uv sync
+
+# 2. Setup Modal (cloud GPU)
+uv run modal token new                                    # Authenticate
+uv run modal secret create huggingface-secret HF_TOKEN=hf_xxx  # Add HF token
+uv run modal volume create medgemma-model-cache           # Create volumes
+uv run modal volume create medgemma-checkpoints
+uv run modal deploy medai_compass/modal/app.py            # Deploy
+
+# 3. Configure environment
+python scripts/generate_secrets.py
+# Edit .env: Add MODAL_TOKEN_ID and MODAL_TOKEN_SECRET from ~/.modal.toml
+
+# 4. Start services
+docker compose up -d
+
+# 5. Test inference
+curl http://localhost:8000/api/v1/inference/status
+curl -X POST http://localhost:8000/api/v1/inference/generate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "What are the symptoms of pneumonia?", "max_tokens": 256}'
+```
+
+**Full setup guide**: [docs/PRODUCTION_SETUP.md](docs/PRODUCTION_SETUP.md)
+
+### Option 2: Local Development
+
+```bash
+# Clone and install
+git clone https://github.com/DevJadhav/medgemma.git
+cd medgemma && uv sync
 
 # Configure
 cp .env.example .env
@@ -67,10 +98,18 @@ uv run pytest tests/ -v
 # Run API locally
 uv run python -m medai_compass.api.main
 # API available at http://localhost:8000
-
-# Run with Docker (production)
-docker-compose up -d
 ```
+
+### Production Services
+
+| Service | Port | Description |
+|---------|------|-------------|
+| API | 8000 | FastAPI backend |
+| Frontend | 3001 | Next.js UI |
+| PostgreSQL | 5432 | Database |
+| Redis | 6379 | Cache |
+| Grafana | 3000 | Monitoring dashboards |
+| Prometheus | 9090 | Metrics |
 
 ---
 

@@ -24,7 +24,7 @@ export function MedicalDisclaimer({
       </p>
       <p className="text-sm leading-relaxed">
         <strong>🚨 Emergency:</strong> If you are experiencing a medical emergency,{' '}
-        <strong>call 911</strong> or go to your nearest emergency room immediately.
+        <strong>call 112</strong> or go to your nearest emergency room immediately.
       </p>
     </div>
   );

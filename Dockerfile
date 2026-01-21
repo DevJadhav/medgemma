@@ -106,6 +106,7 @@ USER medai
 # Use entrypoint for startup validation
 ENTRYPOINT ["/entrypoint.sh"]
 
-# Production command with gunicorn
+# Production command with gunicorn (timeout 300s for Modal GPU cold starts)
 CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", \
-     "-b", "0.0.0.0:8000", "medai_compass.api.main:app"]
+     "-b", "0.0.0.0:8000", "--timeout", "300", "--graceful-timeout", "120", \
+     "medai_compass.api.main:app"]

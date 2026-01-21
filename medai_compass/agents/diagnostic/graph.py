@@ -76,7 +76,7 @@ def _get_checkpointer():
         return None
 
 
-def create_diagnostic_graph() -> StateGraph:
+def create_diagnostic_graph(use_checkpointer: bool = True) -> StateGraph:
     """
     Create the complete diagnostic workflow graph.
     
@@ -84,6 +84,11 @@ def create_diagnostic_graph() -> StateGraph:
     preprocess_images -> analyze_with_medgemma -> localize_findings -> generate_report 
         -> confidence_check -> [high_confidence -> finalize, 
                                 low_confidence -> human_review -> finalize]
+    
+    Args:
+        use_checkpointer: Whether to use state persistence checkpointing.
+            Set to False for API calls where the full workflow runs in one request.
+            Checkpointing can cause serialization issues with numpy arrays.
     
     Returns:
         Compiled LangGraph workflow
@@ -126,8 +131,8 @@ def create_diagnostic_graph() -> StateGraph:
     # Finalize ends the workflow
     workflow.add_edge("finalize", END)
     
-    # Get checkpointer for state persistence
-    checkpointer = _get_checkpointer()
+    # Get checkpointer for state persistence (only if requested)
+    checkpointer = _get_checkpointer() if use_checkpointer else None
     
     # Compile with checkpointer if available
     if checkpointer:

@@ -2,10 +2,18 @@
 
 Provides a single interface for MedGemma inference that automatically:
 - Detects local GPU availability
+- Checks for trained/fine-tuned models
 - Falls back to Modal cloud GPU when needed
+- Uses HuggingFace models as final fallback
 - Handles errors gracefully
 
 This is the main entry point for all MedGemma inference in the application.
+
+Model Priority:
+1. Trained model (if found in checkpoint directory)
+2. Modal GPU with trained model
+3. Modal GPU with HuggingFace model
+4. Local GPU with HuggingFace model
 """
 
 import asyncio
@@ -26,6 +34,14 @@ from medai_compass.utils.gpu import (
 
 logger = logging.getLogger(__name__)
 
+# Default checkpoint directories to search for trained models
+DEFAULT_CHECKPOINT_DIRS = [
+    "./model_output/checkpoints",
+    "./models/trained",
+    "./checkpoints",
+    "/models/trained",
+]
+
 
 @dataclass
 class InferenceResult:
@@ -37,6 +53,7 @@ class InferenceResult:
     device: str   # "cuda", "mps", "cpu", "h100"
     tokens_generated: int = 0
     processing_time_ms: float = 0.0
+    model_source: Optional[str] = None  # "trained" or "huggingface"
     error: Optional[str] = None
 
 
@@ -45,10 +62,16 @@ class MedGemmaInferenceService:
     Unified inference service for MedGemma models.
     
     Automatically handles:
+    - Trained model detection
     - Local GPU detection (CUDA/MPS)
     - Fallback to Modal H100 when local GPU unavailable
     - Model quantization for memory constraints
     - Graceful error handling
+    
+    Model Loading Priority:
+    1. Trained/fine-tuned model from checkpoint directory
+    2. Modal GPU (with trained model if uploaded)
+    3. Local GPU with HuggingFace model
     
     Usage:
         service = MedGemmaInferenceService()
@@ -61,35 +84,58 @@ class MedGemmaInferenceService:
     def __init__(
         self,
         model_name: str = "google/medgemma-4b-it",
-        prefer_modal: bool = False,
-        force_local: bool = False
+        prefer_modal: bool = True,  # Changed default to True
+        force_local: bool = False,
+        checkpoint_dirs: Optional[list[str]] = None
     ):
         """
         Initialize inference service.
         
         Args:
-            model_name: HuggingFace model name
-            prefer_modal: Always use Modal when available
+            model_name: HuggingFace model name (fallback)
+            prefer_modal: Prefer Modal GPU when available (default: True)
             force_local: Never use Modal, even if local GPU unavailable
+            checkpoint_dirs: Directories to search for trained models
         """
         self.model_name = model_name
-        self.prefer_modal = prefer_modal
+        self.prefer_modal = prefer_modal or os.environ.get("PREFER_MODAL_GPU", "").lower() == "true"
         self.force_local = force_local
+        self.checkpoint_dirs = checkpoint_dirs or DEFAULT_CHECKPOINT_DIRS
+        
+        # Add environment variable checkpoint dir
+        env_checkpoint_dir = os.environ.get("MODEL_CHECKPOINT_DIR")
+        if env_checkpoint_dir and env_checkpoint_dir not in self.checkpoint_dirs:
+            self.checkpoint_dirs.insert(0, env_checkpoint_dir)
         
         self._local_model = None
         self._modal_client = None
         self._use_modal = False
         self._initialized = False
         self._config = None
+        self._trained_model_path: Optional[str] = None
+        self._model_source: Optional[str] = None
     
     async def initialize(self) -> None:
         """
         Initialize the inference service.
         
         Detects hardware and loads appropriate model backend.
+        Priority:
+        1. Check for trained model
+        2. Use Modal if preferred and available
+        3. Fall back to local GPU
         """
         if self._initialized:
             return
+        
+        # First, check for trained model
+        self._trained_model_path = self._find_trained_model()
+        if self._trained_model_path:
+            logger.info(f"Found trained model at: {self._trained_model_path}")
+            self._model_source = "trained"
+        else:
+            logger.info("No trained model found, will use HuggingFace")
+            self._model_source = "huggingface"
         
         # Determine model size from name
         model_size = "27b" if "27b" in self.model_name.lower() else "4b"
@@ -102,7 +148,7 @@ class MedGemmaInferenceService:
             memory_req = 60.0 if model_size == "27b" else 8.0
             self._use_modal = should_use_modal(
                 required_memory_gb=memory_req,
-                prefer_remote=self.prefer_modal
+                prefer_modal=self.prefer_modal
             )
         
         if self._use_modal:
@@ -113,14 +159,100 @@ class MedGemmaInferenceService:
         self._initialized = True
         logger.info(
             f"Inference service initialized: backend={'modal' if self._use_modal else 'local'}, "
-            f"device={self._config.get('device', 'unknown')}"
+            f"device={self._config.get('device', 'unknown')}, "
+            f"model_source={self._model_source}"
         )
+    
+    def _find_trained_model(self) -> Optional[str]:
+        """Find trained model in checkpoint directories.
+        
+        Searches for the most recent valid checkpoint in the configured
+        checkpoint directories.
+        
+        Returns:
+            Path to trained model if found, None otherwise.
+        """
+        for checkpoint_dir in self.checkpoint_dirs:
+            path = Path(checkpoint_dir)
+            if not path.exists():
+                continue
+            
+            # Check standard subdirectories first
+            for subdir in ["best", "latest", "final"]:
+                subpath = path / subdir
+                if subpath.exists() and self._is_valid_checkpoint(subpath):
+                    return str(subpath)
+            
+            # Check if the directory itself is a checkpoint
+            if self._is_valid_checkpoint(path):
+                return str(path)
+            
+            # Look for numbered checkpoints first (e.g., checkpoint-1000)
+            checkpoints = sorted(
+                [d for d in path.iterdir() if d.is_dir() and d.name.startswith("checkpoint")],
+                key=lambda x: self._extract_checkpoint_number(x.name),
+                reverse=True
+            )
+            
+            for checkpoint in checkpoints:
+                if self._is_valid_checkpoint(checkpoint):
+                    return str(checkpoint)
+            
+            # Look for any valid checkpoint in subdirectories
+            for subdir in sorted(path.iterdir(), reverse=True):
+                if subdir.is_dir() and self._is_valid_checkpoint(subdir):
+                    return str(subdir)
+        
+        return None
+    
+    def _is_valid_checkpoint(self, path: Path) -> bool:
+        """Check if path contains a valid model checkpoint.
+        
+        Args:
+            path: Path to check.
+            
+        Returns:
+            True if valid checkpoint, False otherwise.
+        """
+        path = Path(path)
+        
+        # Check for model files
+        model_files = [
+            "pytorch_model.bin",
+            "model.safetensors",
+            "pytorch_model.bin.index.json",
+            "model.safetensors.index.json",
+        ]
+        
+        # Check for config files
+        config_files = ["config.json", "adapter_config.json"]
+        
+        has_model = any((path / f).exists() for f in model_files)
+        has_config = any((path / f).exists() for f in config_files)
+        
+        return has_model or has_config
+    
+    def _extract_checkpoint_number(self, name: str) -> int:
+        """Extract checkpoint number from directory name.
+        
+        Args:
+            name: Directory name (e.g., "checkpoint-1000")
+            
+        Returns:
+            Checkpoint number, or 0 if not found.
+        """
+        import re
+        match = re.search(r"checkpoint-?(\d+)", name)
+        return int(match.group(1)) if match else 0
     
     async def _init_modal(self) -> None:
         """Initialize Modal client."""
         try:
             from medai_compass.modal.client import MedGemmaModalClient
-            self._modal_client = MedGemmaModalClient(model_name=self.model_name)
+            self._modal_client = MedGemmaModalClient(
+                model_name=self.model_name,
+                trained_model_path=self._trained_model_path
+            )
             logger.info("Modal inference client initialized")
         except ImportError:
             logger.warning("Modal not available, falling back to local")
@@ -132,13 +264,16 @@ class MedGemmaInferenceService:
         try:
             from medai_compass.models.medgemma import MedGemmaWrapper
             
+            # Use trained model if available, otherwise HuggingFace
+            model_path = self._trained_model_path or self.model_name
+            
             self._local_model = MedGemmaWrapper(
-                model_name=self.model_name,
+                model_name=model_path,
                 quantization=self._config.get("quantization"),
                 multimodal=True,
                 device_map=self._config.get("device_map", "auto")
             )
-            logger.info(f"Local model loaded: {self.model_name}")
+            logger.info(f"Local model loaded: {model_path}")
         except Exception as e:
             logger.error(f"Failed to load local model: {e}")
             # Try Modal as fallback
@@ -189,7 +324,8 @@ class MedGemmaInferenceService:
                     backend="modal",
                     device=result.gpu,
                     tokens_generated=result.tokens_generated,
-                    processing_time_ms=(time.time() - start_time) * 1000
+                    processing_time_ms=(time.time() - start_time) * 1000,
+                    model_source=result.model_source or self._model_source
                 )
             else:
                 # Local inference
@@ -203,10 +339,11 @@ class MedGemmaInferenceService:
                 return InferenceResult(
                     response=response,
                     confidence=self._extract_confidence(response),
-                    model=self.model_name,
+                    model=self._trained_model_path or self.model_name,
                     backend="local",
                     device=self._config.get("device", "cpu"),
-                    processing_time_ms=(time.time() - start_time) * 1000
+                    processing_time_ms=(time.time() - start_time) * 1000,
+                    model_source=self._model_source
                 )
                 
         except Exception as e:
@@ -218,7 +355,8 @@ class MedGemmaInferenceService:
                 backend="error",
                 device="none",
                 error=str(e),
-                processing_time_ms=(time.time() - start_time) * 1000
+                processing_time_ms=(time.time() - start_time) * 1000,
+                model_source=self._model_source
             )
     
     async def analyze_image(
@@ -271,7 +409,8 @@ class MedGemmaInferenceService:
                     model=result.model,
                     backend="modal",
                     device=result.gpu,
-                    processing_time_ms=(time.time() - start_time) * 1000
+                    processing_time_ms=(time.time() - start_time) * 1000,
+                    model_source=result.model_source or self._model_source
                 )
             else:
                 # Local inference expects array
@@ -292,10 +431,11 @@ class MedGemmaInferenceService:
                 return InferenceResult(
                     response=result["response"],
                     confidence=result.get("confidence", 0.85),
-                    model=result.get("model", self.model_name),
+                    model=result.get("model", self._trained_model_path or self.model_name),
                     backend="local",
                     device=self._config.get("device", "cpu"),
-                    processing_time_ms=(time.time() - start_time) * 1000
+                    processing_time_ms=(time.time() - start_time) * 1000,
+                    model_source=self._model_source
                 )
                 
         except Exception as e:
@@ -307,7 +447,8 @@ class MedGemmaInferenceService:
                 backend="error",
                 device="none",
                 error=str(e),
-                processing_time_ms=(time.time() - start_time) * 1000
+                processing_time_ms=(time.time() - start_time) * 1000,
+                model_source=self._model_source
             )
     
     def _prepare_image(
@@ -361,7 +502,28 @@ class MedGemmaInferenceService:
             "initialized": self._initialized,
             "use_modal": self._use_modal,
             "model_name": self.model_name,
+            "trained_model_path": self._trained_model_path,
+            "model_source": self._model_source,
             "config": self._config
+        }
+    
+    async def get_model_info(self) -> dict:
+        """Get detailed model information.
+        
+        Returns:
+            Dict with model source, path, and configuration.
+        """
+        await self.initialize()
+        
+        if self._use_modal and self._modal_client:
+            return await self._modal_client.get_model_info()
+        
+        return {
+            "model_path": self._trained_model_path or self.model_name,
+            "model_source": self._model_source,
+            "is_trained_model": self._model_source == "trained",
+            "backend": "local",
+            "device": self._config.get("device", "cpu") if self._config else "unknown"
         }
 
 

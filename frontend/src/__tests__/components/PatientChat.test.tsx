@@ -167,7 +167,7 @@ describe('MedicalDisclaimer', () => {
 
   it('shows emergency instructions', () => {
     render(<MedicalDisclaimer />);
-    expect(screen.getByText(/call 911/i)).toBeInTheDocument();
+    expect(screen.getByText(/call 112/i)).toBeInTheDocument();
   });
 
   it('can be collapsed', async () => {
@@ -213,7 +213,7 @@ describe('PatientChat', () => {
         {
           id: '1',
           role: 'assistant',
-          content: 'Call 911 immediately',
+          content: 'Call 112 immediately',
           timestamp: '2024-01-15T10:00:00Z',
           triageLevel: 'EMERGENCY',
         },

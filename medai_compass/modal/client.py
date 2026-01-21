@@ -3,8 +3,10 @@
 Provides a clean async interface for calling Modal GPU functions.
 This client handles:
 - Connection management
+- Token verification
 - Error handling and retries
 - Graceful fallback to local inference
+- Support for trained models
 """
 
 import asyncio
@@ -29,6 +31,17 @@ class ModalInferenceResult:
     model: str
     gpu: str
     tokens_generated: int = 0
+    model_source: Optional[str] = None  # "trained" or "huggingface"
+    error: Optional[str] = None
+
+
+@dataclass
+class ModalTokenStatus:
+    """Status of Modal token verification."""
+    token_id_set: bool
+    token_secret_set: bool
+    modal_installed: bool
+    connection_valid: bool
     error: Optional[str] = None
 
 
@@ -39,6 +52,10 @@ class MedGemmaModalClient:
     This client provides an async interface to Modal functions,
     handling connection setup and error recovery.
     
+    Supports:
+    - Trained/fine-tuned models (priority)
+    - HuggingFace MedGemma models (fallback)
+    
     Usage:
         client = MedGemmaModalClient()
         result = await client.generate("Analyze symptoms...")
@@ -48,19 +65,22 @@ class MedGemmaModalClient:
         self,
         model_name: str = "google/medgemma-4b-it",
         timeout: int = 120,
-        max_retries: int = 3
+        max_retries: int = 3,
+        trained_model_path: Optional[str] = None
     ):
         """
         Initialize Modal client.
         
         Args:
-            model_name: HuggingFace model name
+            model_name: HuggingFace model name (fallback)
             timeout: Request timeout in seconds
             max_retries: Maximum retry attempts
+            trained_model_path: Path to trained model (optional)
         """
         self.model_name = model_name
         self.timeout = timeout
         self.max_retries = max_retries
+        self.trained_model_path = trained_model_path
         self._inference_class = None
         self._initialized = False
     
@@ -82,6 +102,48 @@ class MedGemmaModalClient:
             logger.warning("Modal package not installed")
             return False
     
+    def verify_tokens(self) -> ModalTokenStatus:
+        """Verify Modal tokens are properly configured.
+        
+        Returns:
+            ModalTokenStatus with verification results.
+        """
+        token_id = os.environ.get("MODAL_TOKEN_ID")
+        token_secret = os.environ.get("MODAL_TOKEN_SECRET")
+        
+        status = ModalTokenStatus(
+            token_id_set=bool(token_id),
+            token_secret_set=bool(token_secret),
+            modal_installed=False,
+            connection_valid=False
+        )
+        
+        # Check if modal is installed
+        try:
+            import modal
+            status.modal_installed = True
+        except ImportError:
+            status.error = "Modal package not installed"
+            return status
+        
+        # Try to verify connection
+        if status.token_id_set and status.token_secret_set:
+            try:
+                # Test connection by looking up app
+                cls = modal.Cls.from_name("medai-compass", "MedGemmaInference")
+                cls.hydrate()
+                status.connection_valid = True
+            except modal.exception.NotFoundError:
+                # App not deployed yet, but tokens work
+                status.connection_valid = True
+                status.error = "App not deployed yet"
+            except Exception as e:
+                status.error = f"Connection failed: {str(e)}"
+        else:
+            status.error = "Modal tokens not set"
+        
+        return status
+    
     def _get_inference_class(self):
         """Get or create Modal inference class reference."""
         if self._inference_class is not None:
@@ -93,8 +155,8 @@ class MedGemmaModalClient:
         try:
             import modal
             
-            # Look up the deployed app
-            self._inference_class = modal.Cls.lookup(
+            # Look up the deployed app using new API
+            self._inference_class = modal.Cls.from_name(
                 "medai-compass",
                 "MedGemmaInference"
             )
@@ -142,7 +204,8 @@ class MedGemmaModalClient:
                     confidence=result.get("confidence", 0.0),
                     model=result.get("model", self.model_name),
                     gpu=result.get("gpu", "H100"),
-                    tokens_generated=result.get("tokens_generated", 0)
+                    tokens_generated=result.get("tokens_generated", 0),
+                    model_source=result.get("model_source")
                 )
                 
             except Exception as e:
@@ -187,7 +250,8 @@ class MedGemmaModalClient:
                     response=result.get("response", ""),
                     confidence=result.get("confidence", 0.0),
                     model=result.get("model", self.model_name),
-                    gpu=result.get("gpu", "H100")
+                    gpu=result.get("gpu", "H100"),
+                    model_source=result.get("model_source")
                 )
                 
             except ModalInferenceError:
@@ -232,7 +296,8 @@ class MedGemmaModalClient:
                     confidence=r.get("confidence", 0.0),
                     model=r.get("model", self.model_name),
                     gpu=r.get("gpu", "H100"),
-                    tokens_generated=r.get("tokens_generated", 0)
+                    tokens_generated=r.get("tokens_generated", 0),
+                    model_source=r.get("model_source")
                 )
                 for r in results
             ]
@@ -255,6 +320,23 @@ class MedGemmaModalClient:
             return {
                 "status": "unhealthy",
                 "error": str(e)
+            }
+    
+    async def get_model_info(self) -> dict:
+        """
+        Get detailed model information from Modal.
+        
+        Returns:
+            Dict with model source, path, and configuration details.
+        """
+        try:
+            inference_cls = self._get_inference_class()
+            inference = inference_cls()
+            return inference.get_model_info.remote()
+        except Exception as e:
+            return {
+                "error": str(e),
+                "model_loaded": False
             }
     
     def is_available(self) -> bool:

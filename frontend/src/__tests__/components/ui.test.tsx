@@ -170,10 +170,10 @@ describe('Alert', () => {
 
 describe('EmergencyAlert', () => {
   it('renders emergency alert with correct styling', () => {
-    render(<EmergencyAlert>Call 911 immediately</EmergencyAlert>);
+    render(<EmergencyAlert>Call 112 immediately</EmergencyAlert>);
     const alert = screen.getByRole('alert');
     expect(alert).toHaveClass('bg-emergency-600');
-    expect(screen.getByText('Call 911 immediately')).toBeInTheDocument();
+    expect(screen.getByText('Call 112 immediately')).toBeInTheDocument();
   });
 
   it('shows emergency icon', () => {

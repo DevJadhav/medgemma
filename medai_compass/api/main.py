@@ -505,41 +505,96 @@ async def analyze_image(request: DiagnosticRequest) -> DiagnosticResponse:
     Supports chest X-rays, CT scans, MRI, and pathology images.
     """
     import uuid
+    import base64
+    import tempfile
+    import os as os_module
 
     start_time = time.time()
     request_id = str(uuid.uuid4())
+    session_id = str(uuid.uuid4())
+    patient_id = request.patient_id or "anonymous"
+    temp_file_path = None
 
     try:
+        # Handle image input - either path or base64
+        image_path = request.image_path
+        
+        if request.image_base64 and not image_path:
+            # Decode base64 and save to temp file
+            try:
+                image_bytes = base64.b64decode(request.image_base64)
+                # Determine extension based on image type
+                ext = ".png"  # Default
+                if request.image_type == "cxr":
+                    ext = ".dcm"  # DICOM for chest X-rays
+                
+                # Create temp file
+                fd, temp_file_path = tempfile.mkstemp(suffix=ext)
+                with os_module.fdopen(fd, 'wb') as f:
+                    f.write(image_bytes)
+                image_path = temp_file_path
+            except Exception as e:
+                raise ValueError(f"Failed to decode base64 image: {str(e)}")
+        
+        if not image_path:
+            raise ValueError("No image provided. Please provide image_path or image_base64")
+
         # Import diagnostic agent
         from medai_compass.agents.diagnostic.graph import create_diagnostic_graph
         from medai_compass.agents.diagnostic.state import create_initial_state
 
-        # Create initial state
-        state = create_initial_state()
-        state["image_path"] = request.image_path or ""
+        # Create initial state with required patient_id and session_id
+        state = create_initial_state(
+            patient_id=patient_id,
+            session_id=session_id,
+            images=[image_path]
+        )
+        state["image_path"] = image_path
         state["image_type"] = request.image_type
 
-        # Run diagnostic workflow
-        graph = create_diagnostic_graph()
+        # Run diagnostic workflow without checkpointer (avoids numpy serialization issues)
+        graph = create_diagnostic_graph(use_checkpointer=False)
         result = graph.invoke(state)
 
         processing_time = (time.time() - start_time) * 1000
+        requires_review = result.get("requires_review", False)
+        confidence = result.get("confidence", 0.0)
 
         # Record metrics
         if PROMETHEUS_AVAILABLE:
             AGENT_CALLS.labels(agent_type="diagnostic", status="success").inc()
             AGENT_LATENCY.labels(agent_type="diagnostic").observe(processing_time / 1000)
 
-            if result.get("requires_review", False):
+            if requires_review:
                 ESCALATIONS.labels(reason="low_confidence").inc()
+
+        # Create escalation record for analytics tracking
+        if requires_review or confidence < 0.7:
+            try:
+                escalation_store.create(
+                    request_id=request_id,
+                    reason=f"Diagnostic review needed: confidence={confidence:.2f}",
+                    priority="medium" if confidence < 0.5 else "low",
+                    patient_id=patient_id,
+                    diagnostic_result={
+                        "findings": result.get("findings", []),
+                        "confidence": confidence,
+                        "image_path": image_path
+                    },
+                    agent_type="diagnostic",
+                    confidence_score=confidence
+                )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Failed to store diagnostic escalation: {e}")
 
         return DiagnosticResponse(
             request_id=request_id,
             status="completed",
             findings=result.get("findings", []),
-            confidence=result.get("confidence", 0.0),
+            confidence=confidence,
             report=result.get("report", ""),
-            requires_review=result.get("requires_review", False),
+            requires_review=requires_review,
             processing_time_ms=processing_time,
         )
 
@@ -553,6 +608,14 @@ async def analyze_image(request: DiagnosticRequest) -> DiagnosticResponse:
             report=f"Analysis failed: {str(e)}",
             processing_time_ms=(time.time() - start_time) * 1000,
         )
+    
+    finally:
+        # Clean up temp file if created
+        if temp_file_path and os_module.path.exists(temp_file_path):
+            try:
+                os_module.remove(temp_file_path)
+            except Exception:
+                pass  # Ignore cleanup errors
 
 
 # =============================================================================
@@ -682,7 +745,9 @@ async def process_message(request: CommunicationRequest) -> CommunicationRespons
         requires_escalation = getattr(result, 'requires_clinician_review', False) or getattr(result, 'requires_escalation', False)
         triage_level = "INFORMATIONAL"
         if hasattr(result, 'triage_result') and result.triage_result:
-            triage_level = result.triage_result.urgency.value if hasattr(result.triage_result.urgency, 'value') else str(result.triage_result.urgency)
+            # Get the value and convert to uppercase to match frontend expectations
+            raw_level = result.triage_result.urgency.value if hasattr(result.triage_result.urgency, 'value') else str(result.triage_result.urgency)
+            triage_level = raw_level.upper()
 
         if PROMETHEUS_AVAILABLE:
             AGENT_CALLS.labels(agent_type="communication", status="success").inc()
@@ -692,6 +757,28 @@ async def process_message(request: CommunicationRequest) -> CommunicationRespons
 
             if requires_escalation:
                 ESCALATIONS.labels(reason="communication_escalation").inc()
+
+        # Create escalation record if needed for analytics tracking
+        if requires_escalation:
+            try:
+                escalation_store.create(
+                    request_id=request_id,
+                    reason=f"Communication escalation: {triage_level}",
+                    priority="medium" if triage_level in ["soon", "urgent"] else "low",
+                    patient_id=request.patient_id,
+                    original_message=request.message,
+                    communication_result={
+                        "response": result.content,
+                        "triage_level": triage_level,
+                        "confidence": getattr(result, 'confidence', 0.0)
+                    },
+                    agent_type="communication",
+                    confidence_score=getattr(result, 'confidence', 0.0)
+                )
+            except Exception as e:
+                # Log but don't fail the request if escalation storage fails
+                import logging
+                logging.getLogger(__name__).warning(f"Failed to store escalation: {e}")
 
         # Store session in Redis
         if redis_manager.is_connected:
@@ -1005,6 +1092,226 @@ async def submit_escalation_review(escalation_id: str, request: ReviewRequest):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to submit review: {str(e)}",
+        )
+
+
+# =============================================================================
+# Inference Models
+# =============================================================================
+class InferenceRequest(BaseModel):
+    """Inference generation request."""
+    
+    prompt: str = Field(..., description="User prompt for inference")
+    max_tokens: int = Field(512, description="Maximum tokens to generate")
+    temperature: float = Field(0.1, ge=0.0, le=2.0, description="Sampling temperature")
+    system_prompt: Optional[str] = Field(None, description="Optional system prompt")
+
+
+class InferenceResponse(BaseModel):
+    """Inference generation response."""
+    
+    request_id: str
+    response: str
+    confidence: float
+    model: str
+    model_source: Optional[str] = Field(None, description="Model source: trained or huggingface")
+    backend: str = Field(..., description="Backend used: modal or local")
+    device: str = Field(..., description="Device used: H100, cuda, cpu, etc.")
+    tokens_generated: int = 0
+    processing_time_ms: float = 0.0
+
+
+class ImageAnalysisRequest(BaseModel):
+    """Image analysis request."""
+    
+    prompt: str = Field(..., description="Analysis prompt")
+    image_base64: str = Field(..., description="Base64 encoded image")
+    max_tokens: int = Field(1024, description="Maximum tokens to generate")
+
+
+class InferenceStatusResponse(BaseModel):
+    """Inference service status response."""
+    
+    status: str
+    backend: str
+    model_source: Optional[str]
+    model_path: Optional[str]
+    is_trained_model: bool
+    modal_available: bool
+    device: Optional[str]
+
+
+# =============================================================================
+# Inference Endpoints
+# =============================================================================
+@app.post(
+    "/api/v1/inference/generate",
+    response_model=InferenceResponse,
+    tags=["Inference"],
+)
+async def generate_inference(request: InferenceRequest, http_request: Request):
+    """
+    Generate text response using MedGemma model.
+    
+    Uses Modal H100 GPU by default with trained model priority.
+    Falls back to local GPU or HuggingFace model if Modal unavailable.
+    """
+    import time
+    import uuid
+    
+    request_id = str(uuid.uuid4())
+    start_time = time.time()
+    
+    try:
+        from medai_compass.models.inference_service import get_inference_service
+        
+        service = get_inference_service()
+        result = await service.generate(
+            prompt=request.prompt,
+            max_tokens=request.max_tokens,
+            temperature=request.temperature,
+            system_prompt=request.system_prompt
+        )
+        
+        processing_time_ms = (time.time() - start_time) * 1000
+        
+        # Record metrics
+        if PROMETHEUS_AVAILABLE:
+            MODEL_INFERENCE_LATENCY.labels(model_name=result.model).observe(
+                processing_time_ms / 1000
+            )
+        
+        return InferenceResponse(
+            request_id=request_id,
+            response=result.response,
+            confidence=result.confidence,
+            model=result.model,
+            model_source=result.model_source,
+            backend=result.backend,
+            device=result.device,
+            tokens_generated=result.tokens_generated,
+            processing_time_ms=processing_time_ms
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Inference failed: {str(e)}"
+        )
+
+
+@app.post(
+    "/api/v1/inference/analyze-image",
+    response_model=InferenceResponse,
+    tags=["Inference"],
+)
+async def analyze_image_inference(request: ImageAnalysisRequest):
+    """
+    Analyze medical image using MedGemma model.
+    
+    Supports multimodal analysis of medical images (CXR, CT, MRI, etc.).
+    """
+    import base64
+    import time
+    import uuid
+    
+    request_id = str(uuid.uuid4())
+    start_time = time.time()
+    
+    try:
+        from medai_compass.models.inference_service import get_inference_service
+        
+        # Decode base64 image
+        try:
+            image_bytes = base64.b64decode(request.image_base64)
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Invalid base64 image data"
+            )
+        
+        service = get_inference_service()
+        result = await service.analyze_image(
+            image=image_bytes,
+            prompt=request.prompt,
+            max_tokens=request.max_tokens
+        )
+        
+        processing_time_ms = (time.time() - start_time) * 1000
+        
+        # Record metrics
+        if PROMETHEUS_AVAILABLE:
+            MODEL_INFERENCE_LATENCY.labels(model_name=result.model).observe(
+                processing_time_ms / 1000
+            )
+        
+        return InferenceResponse(
+            request_id=request_id,
+            response=result.response,
+            confidence=result.confidence,
+            model=result.model,
+            model_source=result.model_source,
+            backend=result.backend,
+            device=result.device,
+            tokens_generated=result.tokens_generated,
+            processing_time_ms=processing_time_ms
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Image analysis failed: {str(e)}"
+        )
+
+
+@app.get(
+    "/api/v1/inference/status",
+    response_model=InferenceStatusResponse,
+    tags=["Inference"],
+)
+async def get_inference_status():
+    """
+    Get inference service status and model information.
+    
+    Returns current backend, model source, and configuration.
+    """
+    try:
+        from medai_compass.models.inference_service import get_inference_service
+        
+        service = get_inference_service()
+        model_info = await service.get_model_info()
+        backend_info = service.get_backend_info()
+        
+        # Check Modal availability
+        modal_available = False
+        try:
+            from medai_compass.modal.client import MedGemmaModalClient
+            client = MedGemmaModalClient()
+            modal_available = client.is_available()
+        except Exception:
+            pass
+        
+        return InferenceStatusResponse(
+            status="ready" if backend_info.get("initialized") else "initializing",
+            backend="modal" if backend_info.get("use_modal") else "local",
+            model_source=model_info.get("model_source"),
+            model_path=model_info.get("model_path"),
+            is_trained_model=model_info.get("is_trained_model", False),
+            modal_available=modal_available,
+            device=model_info.get("device") or backend_info.get("config", {}).get("device")
+        )
+        
+    except Exception as e:
+        return InferenceStatusResponse(
+            status="error",
+            backend="unknown",
+            model_source=None,
+            model_path=None,
+            is_trained_model=False,
+            modal_available=False,
+            device=None
         )
 
 

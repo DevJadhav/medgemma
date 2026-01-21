@@ -156,7 +156,7 @@ export default function DiagnosticPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select Image
                 </label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary-500 transition-colors">
+                <div className="relative border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary-500 transition-colors">
                   {previewUrl ? (
                     <div className="relative">
                       <img
@@ -165,6 +165,7 @@ export default function DiagnosticPage() {
                         className="max-h-64 mx-auto rounded-lg"
                       />
                       <button
+                        type="button"
                         onClick={handleClear}
                         className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-md hover:bg-gray-100"
                       >
@@ -186,12 +187,14 @@ export default function DiagnosticPage() {
                       </p>
                     </div>
                   )}
-                  <input
-                    type="file"
-                    accept="image/*,.dcm"
-                    onChange={handleFileSelect}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  />
+                  {!previewUrl && (
+                    <input
+                      type="file"
+                      accept="image/*,.dcm"
+                      onChange={handleFileSelect}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                  )}
                 </div>
               </div>
 
@@ -211,6 +214,7 @@ export default function DiagnosticPage() {
 
               {/* Analyze Button */}
               <Button
+                type="button"
                 onClick={handleAnalyze}
                 disabled={!selectedFile || loading}
                 loading={loading}

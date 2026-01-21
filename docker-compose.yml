@@ -91,6 +91,9 @@ services:
       - MODAL_TOKEN_ID=${MODAL_TOKEN_ID}
       - MODAL_TOKEN_SECRET=${MODAL_TOKEN_SECRET}
       - PREFER_MODAL_GPU=${PREFER_MODAL_GPU:-true}
+      # Model checkpoint directory for trained models
+      - MODEL_CHECKPOINT_DIR=${MODEL_CHECKPOINT_DIR:-./model_output/checkpoints}
+      - MEDGEMMA_MODEL=${MEDGEMMA_MODEL:-google/medgemma-4b-it}
     depends_on:
       postgres:
         condition: service_healthy

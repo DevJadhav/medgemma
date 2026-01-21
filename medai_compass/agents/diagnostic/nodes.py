@@ -188,18 +188,27 @@ Include confidence levels for your assessments."""
         try:
             # Run inference (async wrapper for sync context)
             if image_array is not None:
-                # Use asyncio to run async inference
-                loop = asyncio.new_event_loop()
-                try:
-                    result = loop.run_until_complete(
-                        inference_service.analyze_image(
-                            image=image_array,
-                            prompt=analysis_prompt,
-                            max_tokens=1024
+                # Run async code in a separate thread with its own event loop
+                import concurrent.futures
+                
+                def run_async_inference():
+                    """Run inference in a new event loop in a separate thread."""
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        return loop.run_until_complete(
+                            inference_service.analyze_image(
+                                image=image_array,
+                                prompt=analysis_prompt,
+                                max_tokens=1024
+                            )
                         )
-                    )
-                finally:
-                    loop.close()
+                    finally:
+                        loop.close()
+                
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(run_async_inference)
+                    result = future.result(timeout=120)  # 2 minute timeout
                 
                 if result.error:
                     finding = {
@@ -207,6 +216,7 @@ Include confidence levels for your assessments."""
                         "finding": f"Analysis error: {result.error}",
                         "location": "unknown",
                         "severity": "unknown",
+                        "confidence": 0.0,
                         "image_path": img_data.get("path", ""),
                         "modality": modality,
                         "backend": result.backend
@@ -218,6 +228,7 @@ Include confidence levels for your assessments."""
                         "finding": result.response,
                         "location": "see_findings",
                         "severity": _extract_severity(result.response),
+                        "confidence": result.confidence,
                         "image_path": img_data.get("path", ""),
                         "modality": modality,
                         "backend": result.backend,
@@ -231,6 +242,7 @@ Include confidence levels for your assessments."""
                     "finding": "No image array provided for analysis",
                     "location": "unknown",
                     "severity": "unknown",
+                    "confidence": 0.0,
                     "image_path": img_data.get("path", ""),
                     "modality": modality
                 }
@@ -242,6 +254,7 @@ Include confidence levels for your assessments."""
                 "finding": f"Inference failed: {str(e)}",
                 "location": "unknown",
                 "severity": "unknown",
+                "confidence": 0.0,
                 "image_path": img_data.get("path", ""),
                 "modality": modality
             }
@@ -263,19 +276,22 @@ Include confidence levels for your assessments."""
 
 
 def _extract_severity(response: str) -> str:
-    """Extract severity level from MedGemma response."""
+    """Extract severity level from MedGemma response.
+    
+    Maps to frontend expected values: 'low' | 'medium' | 'high' | 'critical'
+    """
     response_lower = response.lower()
     
     if any(word in response_lower for word in ["critical", "severe", "emergency", "urgent"]):
         return "critical"
-    elif any(word in response_lower for word in ["moderate", "significant", "concerning"]):
-        return "moderate"
-    elif any(word in response_lower for word in ["mild", "minor", "slight"]):
-        return "mild"
-    elif any(word in response_lower for word in ["normal", "unremarkable", "no abnormality"]):
-        return "normal"
+    elif any(word in response_lower for word in ["high", "significant", "concerning", "worrisome"]):
+        return "high"
+    elif any(word in response_lower for word in ["moderate", "medium", "some"]):
+        return "medium"
+    elif any(word in response_lower for word in ["mild", "minor", "slight", "low", "normal", "unremarkable", "no abnormality"]):
+        return "low"
     else:
-        return "unknown"
+        return "medium"  # Default to medium instead of unknown
 
 
 def analyze_with_cxr_foundation(state: DiagnosticState) -> dict[str, Any]:
@@ -693,16 +709,26 @@ def generate_report(state: DiagnosticState) -> dict[str, Any]:
         "AI-generated preliminary analysis. Requires clinical verification.",
     ])
     
-    avg_confidence = np.mean(confidence_scores) if confidence_scores else 0.0
+    # Calculate overall confidence from findings' confidence scores
+    # If no confidence_scores list, fall back to individual finding confidences
+    if confidence_scores:
+        avg_confidence = float(np.mean(confidence_scores))
+    elif findings:
+        # Extract confidence from findings themselves
+        finding_confidences = [f.get("confidence", 0.0) for f in findings if f.get("confidence")]
+        avg_confidence = float(np.mean(finding_confidences)) if finding_confidences else 0.0
+    else:
+        avg_confidence = 0.0
     
     return {
         "report": "\n".join(report_lines),
+        "confidence": avg_confidence,  # Add overall confidence to state for API response
         "audit_trail": state["audit_trail"] + [{
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "action": "report_generated",
             "num_findings": len(findings),
             "num_localizations": len(localizations),
-            "avg_confidence": float(avg_confidence)
+            "avg_confidence": avg_confidence
         }]
     }
 

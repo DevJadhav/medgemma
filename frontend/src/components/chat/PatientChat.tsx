@@ -89,7 +89,7 @@ export function PatientChat({ patientId, className = '' }: PatientChatProps) {
       {isEmergency && (
         <div className="px-5 pt-4">
           <EmergencyAlert>
-            This appears to be a medical emergency. Please call 911 or go to your
+            This appears to be a medical emergency. Please call 112 or go to your
             nearest emergency room immediately.
           </EmergencyAlert>
         </div>

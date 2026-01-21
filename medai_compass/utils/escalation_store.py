@@ -579,6 +579,9 @@ def get_escalation_store(use_memory: bool = False) -> EscalationStore:
 
 
 # Default instance for import
-escalation_store = EscalationStore(
-    use_memory=os.getenv("TESTING", "false").lower() == "true"
+# Use memory mode if TESTING=true or if psycopg2 is not available
+_use_memory = (
+    os.getenv("TESTING", "false").lower() == "true" 
+    or not PSYCOPG2_AVAILABLE
 )
+escalation_store = EscalationStore(use_memory=_use_memory)
