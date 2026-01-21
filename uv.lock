@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '4' and sys_platform == 'darwin'",
@@ -5711,6 +5711,7 @@ dependencies = [
     { name = "langgraph", version = "1.0.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
     { name = "minio" },
     { name = "modal" },
+    { name = "nest-asyncio" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "peft" },
@@ -5982,6 +5983,7 @@ requires-dist = [
     { name = "modal", marker = "extra == 'modal'", specifier = ">=0.64.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8.0" },
     { name = "nemoguardrails", marker = "extra == 'guardrails'", specifier = ">=0.9.0" },
+    { name = "nest-asyncio", specifier = ">=1.6.0" },
     { name = "numpy", specifier = ">=1.26.0" },
     { name = "opentelemetry-api", marker = "extra == 'monitoring'", specifier = ">=1.22.0" },
     { name = "opentelemetry-exporter-otlp", marker = "extra == 'monitoring'", specifier = ">=1.22.0" },

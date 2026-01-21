@@ -540,3 +540,122 @@ export function useSystemMetrics(enablePolling: boolean = true) {
 
   return { metrics, loading, error, refresh: fetchMetrics };
 }
+// =============================================================================
+// Compliance & Guardrails Hooks
+// =============================================================================
+
+export interface ComplianceStatus {
+  status: string;
+  timestamp: string;
+  safeguards: Record<string, {
+    status: string;
+    details: string;
+  }>;
+}
+
+export interface GuardrailsConfig {
+  scope_patterns: Record<string, string[]>;
+  jailbreak_categories: string[];
+}
+
+export interface GuardrailsTestResponse {
+  sanitized_input: string;
+  is_safe: boolean;
+  is_valid_request: boolean;
+  jailbreak: {
+    detected: boolean;
+    category: string | null;
+    severity: string;
+    risk_score: number;
+    recommendation: string;
+  };
+  injection: {
+    detected: boolean;
+    risk_score: number;
+    reason: string;
+  };
+  scope: {
+    is_valid: boolean;
+    scope: string | null;
+    reason: string | null;
+  };
+}
+
+export function useComplianceStatus() {
+  const [status, setStatus] = useState<ComplianceStatus | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchStatus = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetchAPI<ComplianceStatus>('/api/v1/guardrails/compliance/status');
+      setStatus(response);
+      return response;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch compliance status');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStatus();
+  }, [fetchStatus]);
+
+  return { status, loading, error, refresh: fetchStatus };
+}
+
+export function useGuardrailsConfig() {
+  const [config, setConfig] = useState<GuardrailsConfig | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await fetchAPI<GuardrailsConfig>('/api/v1/guardrails/config');
+        setConfig(response);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch guardrails config');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchConfig();
+  }, []);
+
+  return { config, loading, error };
+}
+
+export function useGuardrailsTest() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const testGuardrails = useCallback(async (text: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetchAPI<GuardrailsTestResponse>(
+        '/api/v1/guardrails/test',
+        {
+          method: 'POST',
+          body: JSON.stringify({ text }),
+        }
+      );
+      return response;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Test failed');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { testGuardrails, loading, error };
+}
