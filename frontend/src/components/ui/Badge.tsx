@@ -9,12 +9,12 @@ export interface BadgeProps {
 }
 
 const variantStyles = {
-  default: 'bg-gray-100 text-gray-700 border-gray-200',
-  emergency: 'bg-gradient-to-r from-red-500 to-red-600 text-white border-transparent shadow-sm shadow-red-500/25',
-  urgent: 'bg-gradient-to-r from-orange-400 to-orange-500 text-white border-transparent shadow-sm shadow-orange-500/25',
-  success: 'bg-gradient-to-r from-emerald-400 to-emerald-500 text-white border-transparent shadow-sm shadow-emerald-500/25',
-  info: 'bg-gradient-to-r from-blue-400 to-blue-500 text-white border-transparent shadow-sm shadow-blue-500/25',
-  warning: 'bg-gradient-to-r from-amber-400 to-amber-500 text-white border-transparent shadow-sm shadow-amber-500/25',
+  default: 'bg-secondary text-secondary-foreground border-transparent hover:bg-secondary/80',
+  emergency: 'bg-emergency-100 text-emergency-700 border-emergency-200',
+  urgent: 'bg-urgent-100 text-urgent-700 border-urgent-200',
+  success: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  info: 'bg-blue-100 text-blue-700 border-blue-200',
+  warning: 'bg-amber-100 text-amber-700 border-amber-200',
 };
 
 const sizeStyles = {

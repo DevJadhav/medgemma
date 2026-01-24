@@ -127,7 +127,7 @@ const defaultSections: SettingSection[] = [
 
 function SettingRow({ setting, onUpdate }: { setting: Setting; onUpdate: (id: string, value: any) => void }) {
   const isToggleOn = Boolean(setting.value);
-  
+
   const renderInput = () => {
     switch (setting.type) {
       case 'toggle':
@@ -284,10 +284,10 @@ export default function SettingsPage() {
 
         <div className="space-y-6">
           {sections.map((section) => (
-            <Card key={section.id}>
+            <Card key={section.id} variant="glass" className="border-border/40">
               <CardHeader>
-                <h2 className="text-lg font-semibold text-gray-900">{section.title}</h2>
-                <p className="text-sm text-gray-500">{section.description}</p>
+                <h2 className="text-lg font-display font-semibold text-foreground">{section.title}</h2>
+                <p className="text-sm text-muted-foreground">{section.description}</p>
               </CardHeader>
               <CardContent>
                 {section.settings.map((setting) => (

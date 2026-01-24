@@ -74,6 +74,12 @@ const GuardrailsIcon = () => (
   </svg>
 );
 
+const WorkflowIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+  </svg>
+);
+
 // =============================================================================
 // Navigation Component
 // =============================================================================
@@ -83,9 +89,10 @@ export function Navigation({ pendingReviews = 0 }: NavigationProps) {
 
   const navItems: NavItem[] = [
     { href: '/', label: 'Dashboard', icon: <HomeIcon /> },
-    { href: '/chat', label: 'Patient Chat', icon: <ChatIcon /> },
-    { href: '/clinician', label: 'Review Queue', icon: <ClipboardIcon />, badge: pendingReviews },
+    { href: '/chat', label: 'Chat', icon: <ChatIcon /> },
+    { href: '/clinician', label: 'Review', icon: <ClipboardIcon />, badge: pendingReviews },
     { href: '/diagnostic', label: 'Imaging', icon: <ImageIcon /> },
+    { href: '/workflow', label: 'Workflow', icon: <WorkflowIcon /> },
     { href: '/guardrails', label: 'Guardrails', icon: <GuardrailsIcon /> },
     { href: '/compliance', label: 'Compliance', icon: <ComplianceIcon /> },
     { href: '/analytics', label: 'Analytics', icon: <ChartIcon /> },
@@ -106,15 +113,12 @@ export function Navigation({ pendingReviews = 0 }: NavigationProps) {
                 <span className="font-bold text-lg text-gray-900 tracking-tight">
                   MedAI Compass
                 </span>
-                <span className="text-[10px] font-medium text-primary-600 uppercase tracking-wider">
-                  Medical AI Platform
-                </span>
               </div>
             </Link>
           </div>
 
           {/* Navigation Items */}
-          <div className="hidden md:flex items-center gap-1">
+          <div className="hidden md:flex items-center gap-2">
             {navItems.map((item) => {
               const isActive = pathname === item.href ||
                 (item.href !== '/' && pathname.startsWith(item.href));
@@ -134,7 +138,7 @@ export function Navigation({ pendingReviews = 0 }: NavigationProps) {
                 >
                   <span className={isActive ? 'text-primary-600' : 'text-gray-400'}>{item.icon}</span>
                   {item.label}
-                  {item.badge && item.badge > 0 && (
+                  {(item.badge ?? 0) > 0 && (
                     <span className="ml-1 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-red-500 rounded-full shadow-sm">
                       {item.badge}
                     </span>
@@ -238,9 +242,10 @@ export function Sidebar({ pendingReviews = 0 }: NavigationProps) {
 
   const navItems: NavItem[] = [
     { href: '/', label: 'Dashboard', icon: <HomeIcon /> },
-    { href: '/chat', label: 'Patient Chat', icon: <ChatIcon /> },
-    { href: '/clinician', label: 'Review Queue', icon: <ClipboardIcon />, badge: pendingReviews },
+    { href: '/chat', label: 'Chat', icon: <ChatIcon /> },
+    { href: '/clinician', label: 'Review', icon: <ClipboardIcon />, badge: pendingReviews },
     { href: '/diagnostic', label: 'Imaging', icon: <ImageIcon /> },
+    { href: '/workflow', label: 'Workflow', icon: <WorkflowIcon /> },
     { href: '/guardrails', label: 'Guardrails', icon: <GuardrailsIcon /> },
     { href: '/compliance', label: 'Compliance', icon: <ComplianceIcon /> },
     { href: '/analytics', label: 'Analytics', icon: <ChartIcon /> },
@@ -257,7 +262,6 @@ export function Sidebar({ pendingReviews = 0 }: NavigationProps) {
           </div>
           <div className="flex flex-col">
             <span className="font-bold text-gray-900">MedAI Compass</span>
-            <span className="text-[10px] font-medium text-primary-600 uppercase tracking-wider">Medical AI</span>
           </div>
         </Link>
       </div>
@@ -283,7 +287,7 @@ export function Sidebar({ pendingReviews = 0 }: NavigationProps) {
             >
               <span className={isActive ? 'text-primary-600' : 'text-gray-400'}>{item.icon}</span>
               <span className="flex-1">{item.label}</span>
-              {item.badge && item.badge > 0 && (
+              {(item.badge ?? 0) > 0 && (
                 <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-red-500 rounded-full">
                   {item.badge}
                 </span>

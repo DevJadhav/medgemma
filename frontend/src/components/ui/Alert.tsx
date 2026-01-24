@@ -10,10 +10,10 @@ export interface AlertProps {
 }
 
 const variantStyles = {
-  info: 'bg-blue-50 border-l-4 border-blue-500 text-blue-800',
-  warning: 'bg-amber-50 border-l-4 border-amber-500 text-amber-800',
-  error: 'bg-red-50 border-l-4 border-red-500 text-red-800',
-  success: 'bg-emerald-50 border-l-4 border-emerald-500 text-emerald-800',
+  info: 'bg-blue-50/50 border border-blue-200 text-blue-800 backdrop-blur-sm',
+  warning: 'bg-amber-50/50 border border-amber-200 text-amber-800 backdrop-blur-sm',
+  error: 'bg-red-50/50 border border-red-200 text-red-800 backdrop-blur-sm',
+  success: 'bg-emerald-50/50 border border-emerald-200 text-emerald-800 backdrop-blur-sm',
 };
 
 const iconPaths = {

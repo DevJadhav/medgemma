@@ -91,75 +91,79 @@ export function ClinicianDashboard() {
   const criticalToday = stats?.critical_findings_today || 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
+      <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/20 supports-[backdrop-filter]:bg-background/60">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                Clinician Review Dashboard
+              <h1 className="text-4xl font-display font-semibold text-foreground tracking-tight">
+                Review
               </h1>
               {lastUpdated && (
-                <p className="text-sm text-gray-500">
-                  Last updated: {lastUpdated.toLocaleTimeString()} • Auto-refreshing every 30s
+                <p className="text-sm text-muted-foreground mt-1">
+                  Last updated: {lastUpdated.toLocaleTimeString()}
                 </p>
               )}
             </div>
-            <Button
-              variant="outline"
-              onClick={refresh}
-              disabled={loading}
-              aria-label="Refresh"
-            >
-              {loading ? 'Refreshing...' : 'Refresh Now'}
-            </Button>
+            <div className="flex items-center gap-3">
+              {/* Additional actions can go here */}
+              <Button
+                variant="outline"
+                onClick={refresh}
+                disabled={loading}
+                aria-label="Refresh"
+                className="bg-background/50 backdrop-blur-sm border-border/50 hover:bg-background/80"
+              >
+                {loading ? 'Refreshing...' : 'Refresh'}
+              </Button>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <Card>
-            <CardContent className="p-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Card variant="glass" className="border-border/40">
+            <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500">Pending Reviews</p>
+                  <p className="text-sm font-medium text-muted-foreground">Pending Reviews</p>
                   <p
                     data-testid="pending-count"
-                    className="text-2xl font-bold text-gray-900"
+                    className="text-4xl font-display font-bold text-foreground mt-2"
                   >
                     {pendingCount}
                   </p>
                 </div>
-                <Badge variant="info" size="lg">Queue</Badge>
+                <Badge variant="info" size="lg" className="rounded-full">Queue</Badge>
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4">
+          <Card variant="glass" className="border-border/40">
+            <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500">Critical Today</p>
-                  <p className="text-2xl font-bold text-emergency-600">
+                  <p className="text-sm font-medium text-muted-foreground">Critical Today</p>
+                  <p className="text-4xl font-display font-bold text-emergency-600 mt-2">
                     {criticalToday}
                   </p>
                 </div>
-                <Badge variant="emergency" size="lg" pulse={criticalToday > 0}>
+                <Badge variant="emergency" size="lg" pulse={criticalToday > 0} className="rounded-full">
                   Critical
                 </Badge>
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4">
+          <Card variant="glass" className="border-border/40">
+            <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500">High Priority</p>
-                  <p className="text-2xl font-bold text-urgent-600">{highCount}</p>
+                  <p className="text-sm font-medium text-muted-foreground">High Priority</p>
+                  <p className="text-4xl font-display font-bold text-urgent-600 mt-2">{highCount}</p>
                 </div>
-                <Badge variant="urgent" size="lg">High</Badge>
+                <Badge variant="urgent" size="lg" className="rounded-full">High</Badge>
               </div>
             </CardContent>
           </Card>

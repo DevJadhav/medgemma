@@ -13,7 +13,8 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    --primary: 199 89% 48%; /* Medical Teal/Blue */
+    --primary: 199 89% 48%;
+    /* Medical Teal/Blue - Keeping branding */
     --primary-foreground: 210 40% 98%;
 
     --secondary: 210 40% 96.1%;
@@ -22,7 +23,7 @@
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 199 89% 94%;
+    --accent: 199 89% 96%;
     --accent-foreground: 222 47% 11%;
 
     --destructive: 0 84.2% 60.2%;
@@ -32,17 +33,20 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 199 89% 48%;
 
-    --radius: 1rem;
+    --radius: 0.75rem;
+    /* Slightly tighter radius for cleaner look */
   }
 
   .dark {
-    --background: 222 47% 11%;
+    --background: 222 47% 10%;
+    /* Slightly darker background */
     --foreground: 210 40% 98%;
 
-    --card: 222 47% 11%;
+    --card: 222 47% 12%;
+    /* Distinguish card from bg */
     --card-foreground: 210 40% 98%;
 
-    --popover: 222 47% 11%;
+    --popover: 222 47% 12%;
     --popover-foreground: 210 40% 98%;
 
     --primary: 199 89% 48%;
@@ -70,10 +74,17 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground antialiased;
   }
-  h1, h2, h3, h4, h5, h6 {
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply font-display tracking-tight;
   }
 }
@@ -82,12 +93,16 @@
   .text-balance {
     text-wrap: balance;
   }
-  
+
   .glass {
-    @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-sm;
+    @apply bg-white/80 backdrop-blur-xl border border-white/40 shadow-sm;
   }
-  
+
   .glass-dark {
-    @apply bg-black/30 backdrop-blur-md border border-white/10 shadow-sm;
+    @apply bg-slate-900/60 backdrop-blur-xl border border-white/10 shadow-sm;
+  }
+
+  .bg-subtle-gradient {
+    @apply bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900;
   }
 }

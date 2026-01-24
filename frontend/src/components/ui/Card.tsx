@@ -8,8 +8,8 @@ export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 const variantStyles = {
-  default: 'bg-card text-card-foreground border border-border shadow-sm',
-  elevated: 'bg-card text-card-foreground border-none shadow-md',
+  default: 'bg-card text-card-foreground border border-border/50 shadow-sm hover:shadow-md transition-shadow',
+  elevated: 'bg-card text-card-foreground border-none shadow-lg',
   outlined: 'bg-transparent border border-border shadow-none',
   glass: 'glass text-foreground',
 };

@@ -20,7 +20,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className={clsx(inter.variable, playfair.variable, "h-full font-sans bg-background text-foreground selection:bg-primary selection:text-primary-foreground")}>{children}</body>
+      <body className={clsx(inter.variable, playfair.variable, "h-full font-sans bg-subtle-gradient text-foreground selection:bg-primary selection:text-primary-foreground")}>{children}</body>
     </html>
   );
 }

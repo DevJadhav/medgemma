@@ -56,13 +56,20 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // Legacy palette support
+        // Updated Semantic Palette
         emergency: {
-          50: '#fef2f2',
-          100: '#fee2e2',
-          500: '#ef4444',
-          600: '#dc2626',
-          700: '#b91c1c',
+          50: '#fff1f2',
+          100: '#ffe4e6',
+          500: '#f43f5e', // Rose
+          600: '#e11d48',
+          700: '#be123c',
+        },
+        urgent: {
+          50: '#fff7ed',
+          100: '#ffedd5',
+          500: '#f97316', // Orange
+          600: '#ea580c',
+          700: '#c2410c',
         },
       },
       borderRadius: {
