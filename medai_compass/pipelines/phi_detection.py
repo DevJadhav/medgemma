@@ -133,8 +133,8 @@ class PHIPipelineFilter:
                     start = text.find(str(instance))
                     if start >= 0:
                         locations.append((start, start + len(str(instance))))
-                except:
-                    pass
+                except (ValueError, TypeError) as e:
+                    logger.debug(f"Error locating PHI instance: {e}")
             phi_locations[phi_type] = locations
         
         return PHIFilterResult(

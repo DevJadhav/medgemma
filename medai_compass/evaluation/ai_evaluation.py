@@ -697,7 +697,8 @@ class BiasEvaluator:
                         f1_by_group[str(group)] = float(
                             f1_score(labels[mask], predictions[mask], zero_division=0)
                         )
-                    except:
+                    except (ValueError, TypeError, IndexError) as e:
+                        logger.debug(f"Failed to calculate F1 for group {group}: {e}")
                         f1_by_group[str(group)] = 0.0
             
             # Check accuracy disparity

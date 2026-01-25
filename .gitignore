@@ -241,6 +241,8 @@ WARP.md
 *.draft.md
 TODO.md
 NOTES.md
+PRINCIPAL_ARCHITECT_ANALYSIS.md
+CLAUDE.md
 
 # =============================================================================
 # Frontend Build Artifacts

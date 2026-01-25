@@ -456,7 +456,7 @@ class SyntheticDataVersionManager:
                         total += len(data["records"])
                     else:
                         total += 1
-            except:
-                pass
-        
+            except (json.JSONDecodeError, IOError, KeyError, TypeError) as e:
+                logger.debug(f"Failed to count records in {json_file}: {e}")
+
         return total
