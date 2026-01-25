@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 # Import escalation store early for proper patching in tests
 from medai_compass.utils.escalation_store import escalation_store
 from medai_compass.api.guardrails import router as guardrails_router
+from medai_compass.api.rag import router as rag_router
 
 # Prometheus metrics
 try:
@@ -447,6 +448,7 @@ def create_app() -> FastAPI:
 # Create the app instance
 app = create_app()
 app.include_router(guardrails_router)
+app.include_router(rag_router)
 
 
 # =============================================================================

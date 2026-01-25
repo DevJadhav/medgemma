@@ -94,10 +94,17 @@ services:
       # Model checkpoint directory for trained models
       - MODEL_CHECKPOINT_DIR=${MODEL_CHECKPOINT_DIR:-./model_output/checkpoints}
       - MEDGEMMA_MODEL=${MEDGEMMA_MODEL:-google/medgemma-4b-it}
+      # RAG configuration
+      - CHROMADB_HOST=chromadb
+      - CHROMADB_PORT=8000
+      - RAG_ENABLED=${RAG_ENABLED:-true}
+      - RAG_COLLECTION_NAME=${RAG_COLLECTION_NAME:-medical_knowledge}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      chromadb:
         condition: service_healthy
     networks:
       - medai-network
@@ -218,6 +225,35 @@ services:
     deploy:
       resources:
         limits:
+          memory: 512M
+
+  # =========================================================================
+  # ChromaDB Vector Database (for RAG)
+  # =========================================================================
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: medai-chromadb
+    restart: unless-stopped
+    ports:
+      - "${CHROMADB_PORT:-8100}:8000"
+    volumes:
+      - chromadb-data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+      - ALLOW_RESET=FALSE
+    networks:
+      - medai-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
           memory: 512M
 
   # =========================================================================
@@ -574,6 +610,7 @@ volumes:
   postgres-data:
   redis-data:
   minio-data:
+  chromadb-data:
   model-cache:
   prometheus-data:
   grafana-data:
