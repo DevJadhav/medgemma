@@ -17,6 +17,27 @@ This guide covers deploying and running MedGemma models for inference in product
 
 ## Quick Start
 
+### Using the Pipeline CLI (Recommended)
+
+The easiest way to start inference is with the unified Pipeline CLI:
+
+```bash
+# Start Ray Serve with default model
+uv run python -m medai_compass.pipelines serve
+
+# Serve with specific model and port
+uv run python -m medai_compass.pipelines serve --model medgemma-27b --port 8000
+
+# Enable multi-model routing
+uv run python -m medai_compass.pipelines serve --multi-model
+
+# Specify number of replicas
+uv run python -m medai_compass.pipelines serve --replicas 2
+
+# Disable autoscaling
+uv run python -m medai_compass.pipelines serve --no-autoscaling
+```
+
 ### Local Inference
 
 ```python

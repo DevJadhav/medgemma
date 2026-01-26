@@ -78,6 +78,7 @@ from medai_compass.pipelines.deployment_pipeline import (
     validate_config,
     load_deployment_config,
 )
+from medai_compass.pipelines.cli import main as cli_main
 
 __all__ = [
     # Ray pipeline
@@ -129,4 +130,6 @@ __all__ = [
     "AlertConfig",
     "validate_config",
     "load_deployment_config",
+    # CLI
+    "cli_main",
 ]

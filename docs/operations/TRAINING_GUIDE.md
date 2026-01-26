@@ -16,13 +16,33 @@ This guide covers fine-tuning MedGemma models using MedAI Compass's training inf
 
 ## Quick Start
 
+### Using the Pipeline CLI (Recommended)
+
+The unified Pipeline CLI provides the easiest way to train models:
+
+```bash
+# Run full pipeline (data -> train -> evaluate)
+uv run python -m medai_compass.pipelines run --model medgemma-4b
+
+# Train with Hydra overrides
+uv run python -m medai_compass.pipelines train \
+    model=medgemma_27b \
+    training.args.learning_rate=1e-4
+
+# Train with Modal cloud GPUs
+uv run python -m medai_compass.pipelines train --backend modal
+
+# Dry run to verify configuration
+uv run python -m medai_compass.pipelines train --dry-run
+```
+
 ### Single GPU Training (LoRA)
 
 ```bash
-# Basic training with defaults (4B model, LoRA, Modal H100)
-python -m medai_compass.train
+# Using Pipeline CLI (recommended)
+uv run python -m medai_compass.pipelines train model=medgemma_4b training=lora
 
-# Or with explicit configuration
+# Or using direct module
 python -m medai_compass.train \
     model=medgemma_4b \
     training=lora \
@@ -33,18 +53,17 @@ python -m medai_compass.train \
 
 ```bash
 # 8x GPU training with DeepSpeed ZeRO-3
-python -m medai_compass.train \
+uv run python -m medai_compass.pipelines train \
     model=medgemma_27b \
     training=qlora \
-    training/deepspeed=zero3_offload \
-    compute=local
+    training/deepspeed=zero3_offload
 ```
 
 ### Quick Test
 
 ```bash
 # Fast training for testing (100 steps)
-python -m medai_compass.train +experiment=quick_test
+uv run python -m medai_compass.pipelines train --max-steps 100 --dry-run
 ```
 
 ---

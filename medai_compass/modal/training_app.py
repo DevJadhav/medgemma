@@ -40,13 +40,13 @@ if MODAL_AVAILABLE:
     )
 
     # Training image with CUDA and ML dependencies
-    # Use NVIDIA CUDA runtime as base for proper GPU support
+    # Use NVIDIA CUDA devel image (includes nvcc) for DeepSpeed support
     training_image = (
         modal.Image.from_registry(
-            "nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04",
+            "nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04",
             add_python="3.11",
         )
-        .apt_install("git", "curl")
+        .apt_install("git", "curl", "build-essential")  # build-essential for C compiler (needed by Triton)
         .run_commands(
             # Install uv for faster pip operations
             "curl -LsSf https://astral.sh/uv/install.sh | sh",
@@ -58,6 +58,8 @@ if MODAL_AVAILABLE:
             # Install ML training dependencies (pin transformers for MedGemma compatibility)
             "uv pip install --system numpy 'transformers>=4.47.0' accelerate peft datasets "
             "huggingface_hub scipy safetensors pyyaml sentencepiece tokenizers",
+            # Install DeepSpeed for distributed training
+            "uv pip install --system deepspeed>=0.9.3",
         )
         .env({
             "HF_HOME": "/root/.cache/huggingface",
@@ -128,7 +130,7 @@ if MODAL_AVAILABLE:
         ) -> dict[str, Any]:
             """
             Run distributed training job.
-            
+
             Args:
                 model_name: Model to train ("medgemma-4b" or "medgemma-27b")
                 train_data_path: Path to training data
@@ -144,11 +146,12 @@ if MODAL_AVAILABLE:
                 warmup_ratio: Learning rate warmup ratio
                 mlflow_tracking_uri: MLflow server URI
                 experiment_name: MLflow experiment name
-                
+
             Returns:
                 Training result dictionary
             """
             import torch
+            from accelerate import Accelerator
             from peft import LoraConfig, TaskType, get_peft_model
             from transformers import (
                 AutoModelForCausalLM,
@@ -181,10 +184,30 @@ if MODAL_AVAILABLE:
             config = model_configs.get(model_key, model_configs["medgemma-27b"])
             hf_model_id = config["hf_model_id"]
             use_deepspeed = config["use_deepspeed"]
+            num_gpus = config["num_gpus"]
 
             print(f"Training {hf_model_id}")
             print(f"GPUs available: {torch.cuda.device_count()}")
             print(f"Using DeepSpeed: {use_deepspeed}")
+            print(f"Configured for {num_gpus} GPUs")
+
+            # For multi-GPU with DeepSpeed, use subprocess with torchrun
+            if use_deepspeed and torch.cuda.device_count() > 1:
+                return self._run_distributed_training(
+                    hf_model_id=hf_model_id,
+                    train_data_path=train_data_path,
+                    eval_data_path=eval_data_path,
+                    max_steps=max_steps,
+                    batch_size=batch_size,
+                    learning_rate=learning_rate,
+                    lora_r=lora_r,
+                    lora_alpha=lora_alpha,
+                    gradient_accumulation_steps=gradient_accumulation_steps,
+                    save_steps=save_steps,
+                    eval_steps=eval_steps,
+                    warmup_ratio=warmup_ratio,
+                    num_gpus=torch.cuda.device_count(),
+                )
 
             # Load tokenizer
             tokenizer = AutoTokenizer.from_pretrained(
@@ -241,38 +264,7 @@ if MODAL_AVAILABLE:
                     "train_micro_batch_size_per_gpu": batch_size,
                 }
 
-            # Training arguments
-            training_args = TrainingArguments(
-                output_dir="/checkpoints/training",
-                max_steps=max_steps,
-                per_device_train_batch_size=batch_size,
-                per_device_eval_batch_size=batch_size,
-                learning_rate=learning_rate,
-                warmup_ratio=warmup_ratio,
-                weight_decay=0.01,
-                gradient_accumulation_steps=gradient_accumulation_steps,
-                max_grad_norm=1.0,
-                bf16=True,
-                logging_steps=10,
-                save_steps=save_steps,
-                eval_steps=eval_steps,
-                save_total_limit=3,
-                load_best_model_at_end=True,
-                metric_for_best_model="loss",
-                greater_is_better=False,
-                gradient_checkpointing=True,
-                deepspeed=ds_config,
-                report_to=["mlflow"] if mlflow_tracking_uri else [],
-            )
-
-            # Set up MLflow
-            if mlflow_tracking_uri:
-                import mlflow
-                mlflow.set_tracking_uri(mlflow_tracking_uri)
-                if experiment_name:
-                    mlflow.set_experiment(experiment_name)
-
-            # Load training and evaluation datasets
+            # Load training and evaluation datasets first to determine eval strategy
             train_dataset = None
             eval_dataset = None
 
@@ -292,13 +284,47 @@ if MODAL_AVAILABLE:
                 eval_dataset = self._load_dataset(eval_data_path, tokenizer)
                 print(f"Loaded {len(eval_dataset)} evaluation samples")
 
+            # Training arguments - only enable load_best_model_at_end if eval_dataset exists
+            has_eval = eval_dataset is not None
+            training_args = TrainingArguments(
+                output_dir="/checkpoints/training",
+                max_steps=max_steps,
+                per_device_train_batch_size=batch_size,
+                per_device_eval_batch_size=batch_size,
+                learning_rate=learning_rate,
+                warmup_ratio=warmup_ratio,
+                weight_decay=0.01,
+                gradient_accumulation_steps=gradient_accumulation_steps,
+                max_grad_norm=1.0,
+                bf16=True,
+                logging_steps=10,
+                save_steps=save_steps,
+                eval_strategy="steps" if has_eval else "no",
+                eval_steps=eval_steps if has_eval else None,
+                save_total_limit=3,
+                load_best_model_at_end=has_eval,
+                metric_for_best_model="loss" if has_eval else None,
+                greater_is_better=False if has_eval else None,
+                gradient_checkpointing=True,
+                deepspeed=ds_config,
+                report_to=["mlflow"] if mlflow_tracking_uri else [],
+            )
+
+            # Set up MLflow
+            if mlflow_tracking_uri:
+                import mlflow
+                mlflow.set_tracking_uri(mlflow_tracking_uri)
+                if experiment_name:
+                    mlflow.set_experiment(experiment_name)
+
             # Create trainer with datasets
+            # Note: In transformers 5.0+, 'tokenizer' was renamed to 'processing_class'
             trainer = Trainer(
                 model=model,
                 args=training_args,
                 train_dataset=train_dataset,
                 eval_dataset=eval_dataset,
-                tokenizer=tokenizer,
+                processing_class=tokenizer,
             )
 
             # Run training
@@ -334,6 +360,268 @@ if MODAL_AVAILABLE:
                 },
                 "training_loss": train_result.training_loss,
                 "global_step": train_result.global_step,
+                "checkpoint_path": "/checkpoints/final",
+                "merged_model_path": "/checkpoints/final-merged",
+            }
+
+        def _run_distributed_training(
+            self,
+            hf_model_id: str,
+            train_data_path: str,
+            eval_data_path: str | None,
+            max_steps: int,
+            batch_size: int,
+            learning_rate: float,
+            lora_r: int,
+            lora_alpha: int,
+            gradient_accumulation_steps: int,
+            save_steps: int,
+            eval_steps: int,
+            warmup_ratio: float,
+            num_gpus: int,
+        ) -> dict[str, Any]:
+            """
+            Run distributed training using accelerate launcher.
+
+            This method creates a training script and launches it with
+            `accelerate launch` for proper multi-GPU distributed training.
+            """
+            import json
+            import os
+            import subprocess
+            import tempfile
+
+            import torch
+
+            print(f"Launching distributed training across {num_gpus} GPUs...")
+
+            # Create DeepSpeed config file
+            ds_config = {
+                "bf16": {"enabled": True},
+                "zero_optimization": {
+                    "stage": 3,
+                    "offload_optimizer": {
+                        "device": "cpu",
+                        "pin_memory": True,
+                    },
+                    "offload_param": {"device": "none"},
+                    "overlap_comm": True,
+                    "contiguous_gradients": True,
+                    "reduce_bucket_size": 5e8,
+                    "stage3_prefetch_bucket_size": 5e8,
+                    "stage3_param_persistence_threshold": 1e6,
+                },
+                "gradient_accumulation_steps": gradient_accumulation_steps,
+                "gradient_clipping": 1.0,
+                "train_micro_batch_size_per_gpu": batch_size,
+            }
+
+            # Write configs to temp files
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+                json.dump(ds_config, f)
+                ds_config_path = f.name
+
+            # Create training script
+            train_script = f'''
+import json
+import torch
+from peft import LoraConfig, TaskType, get_peft_model
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    Trainer,
+    TrainingArguments,
+)
+from datasets import Dataset, load_dataset
+
+print(f"GPU {{torch.cuda.current_device()}}/{{torch.cuda.device_count()}}: Starting training...")
+
+# Load tokenizer
+tokenizer = AutoTokenizer.from_pretrained("{hf_model_id}", trust_remote_code=True)
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
+
+# Load model WITHOUT device_map for DeepSpeed
+model = AutoModelForCausalLM.from_pretrained(
+    "{hf_model_id}",
+    torch_dtype=torch.bfloat16,
+    trust_remote_code=True,
+)
+
+# Configure LoRA
+lora_config = LoraConfig(
+    task_type=TaskType.CAUSAL_LM,
+    r={lora_r},
+    lora_alpha={lora_alpha},
+    lora_dropout=0.05,
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+    bias="none",
+)
+model = get_peft_model(model, lora_config)
+
+if torch.distributed.get_rank() == 0:
+    model.print_trainable_parameters()
+
+# Load and preprocess training data
+def load_and_tokenize(data_path):
+    max_length = 4096
+    system_prompt = "You are a medical AI assistant trained to help healthcare providers."
+
+    data = []
+    with open(data_path) as f:
+        for line in f:
+            if line.strip():
+                data.append(json.loads(line))
+    dataset = Dataset.from_list(data)
+
+    def format_and_tokenize(examples):
+        texts = []
+        for i in range(len(examples["instruction"])):
+            instr = examples["instruction"][i]
+            inp = examples.get("input", [""])[i] or ""
+            out = examples["output"][i]
+            if inp:
+                text = f"<bos><start_of_turn>user\\n{{system_prompt}}\\n\\n{{instr}}\\n\\nContext: {{inp}}<end_of_turn>\\n<start_of_turn>model\\n{{out}}<end_of_turn><eos>"
+            else:
+                text = f"<bos><start_of_turn>user\\n{{system_prompt}}\\n\\n{{instr}}<end_of_turn>\\n<start_of_turn>model\\n{{out}}<end_of_turn><eos>"
+            texts.append(text)
+
+        tokenized = tokenizer(
+            texts,
+            truncation=True,
+            max_length=max_length,
+            padding="max_length",
+            return_tensors=None,
+        )
+        tokenized["labels"] = tokenized["input_ids"].copy()
+        return tokenized
+
+    return dataset.map(format_and_tokenize, batched=True, remove_columns=dataset.column_names, desc="Tokenizing")
+
+train_dataset = load_and_tokenize("{train_data_path}")
+print(f"Loaded {{len(train_dataset)}} training samples")
+
+# Training arguments with DeepSpeed
+training_args = TrainingArguments(
+    output_dir="/checkpoints/training",
+    max_steps={max_steps},
+    per_device_train_batch_size={batch_size},
+    learning_rate={learning_rate},
+    warmup_ratio={warmup_ratio},
+    weight_decay=0.01,
+    gradient_accumulation_steps={gradient_accumulation_steps},
+    max_grad_norm=1.0,
+    bf16=True,
+    logging_steps=10,
+    save_steps={save_steps},
+    save_total_limit=3,
+    gradient_checkpointing=True,
+    deepspeed="{ds_config_path}",
+    report_to=[],
+    ddp_find_unused_parameters=False,
+)
+
+# Create trainer
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=train_dataset,
+    processing_class=tokenizer,
+)
+
+# Run training
+print("Starting distributed training...")
+train_result = trainer.train()
+
+# Save model (only on rank 0)
+if torch.distributed.get_rank() == 0:
+    print("Saving final model...")
+    trainer.save_model("/checkpoints/final")
+    tokenizer.save_pretrained("/checkpoints/final")
+
+    # Merge LoRA weights
+    print("Merging LoRA weights...")
+    merged_model = model.merge_and_unload()
+    merged_model.save_pretrained("/checkpoints/final-merged")
+    tokenizer.save_pretrained("/checkpoints/final-merged")
+
+    # Write results
+    results = {{
+        "training_loss": train_result.training_loss,
+        "global_step": train_result.global_step,
+    }}
+    with open("/checkpoints/training_result.json", "w") as f:
+        json.dump(results, f)
+
+print(f"GPU {{torch.cuda.current_device()}}: Training complete!")
+'''
+
+            # Write training script
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+                f.write(train_script)
+                script_path = f.name
+
+            # Run with accelerate launch (--use_deepspeed handles multi-gpu automatically)
+            cmd = [
+                "accelerate", "launch",
+                "--num_processes", str(num_gpus),
+                "--mixed_precision", "bf16",
+                "--use_deepspeed",
+                "--deepspeed_config_file", ds_config_path,
+                script_path,
+            ]
+
+            print(f"Running: {' '.join(cmd)}")
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                env={**os.environ, "TOKENIZERS_PARALLELISM": "false"},
+            )
+
+            # Print output for debugging
+            if result.stdout:
+                print("STDOUT:", result.stdout)
+            if result.stderr:
+                print("STDERR:", result.stderr)
+
+            # Cleanup temp files
+            os.unlink(script_path)
+            os.unlink(ds_config_path)
+
+            if result.returncode != 0:
+                return {
+                    "status": "failed",
+                    "error": f"Training failed with return code {result.returncode}",
+                    "stdout": result.stdout[-5000:] if result.stdout else "",
+                    "stderr": result.stderr[-5000:] if result.stderr else "",
+                }
+
+            # Load training results
+            try:
+                with open("/checkpoints/training_result.json") as f:
+                    train_results = json.load(f)
+            except Exception:
+                train_results = {"training_loss": 0.0, "global_step": max_steps}
+
+            # Commit checkpoints
+            checkpoints.commit()
+
+            return {
+                "status": "completed",
+                "model": hf_model_id,
+                "gpus": num_gpus,
+                "deepspeed": True,
+                "distributed": True,
+                "config": {
+                    "max_steps": max_steps,
+                    "batch_size": batch_size,
+                    "learning_rate": learning_rate,
+                    "lora_r": lora_r,
+                    "lora_alpha": lora_alpha,
+                },
+                "training_loss": train_results.get("training_loss", 0.0),
+                "global_step": train_results.get("global_step", 0),
                 "checkpoint_path": "/checkpoints/final",
                 "merged_model_path": "/checkpoints/final-merged",
             }

@@ -269,6 +269,47 @@ print(f"Backend: {config['backend']}")  # local, modal, or cpu
 print(f"Device: {config['device']}")     # cuda:0, mps, or cpu
 ```
 
+### Pipeline CLI
+
+MedAI Compass includes a unified CLI for running Ray-based ML pipelines:
+
+```bash
+# Run full pipeline (data -> train -> evaluate)
+uv run python -m medai_compass.pipelines run --model medgemma-4b
+
+# Train with Hydra config overrides
+uv run python -m medai_compass.pipelines train model=medgemma_27b training.args.learning_rate=1e-4
+
+# Hyperparameter tuning
+uv run python -m medai_compass.pipelines tune --scheduler asha --num-samples 50
+
+# Evaluate model on benchmarks
+uv run python -m medai_compass.pipelines evaluate --checkpoint /checkpoints/final
+
+# Start Ray Serve for inference
+uv run python -m medai_compass.pipelines serve --port 8000
+
+# Process data with PHI filtering
+uv run python -m medai_compass.pipelines data --source ./data/raw --output ./data/processed
+
+# Show configuration
+uv run python -m medai_compass.pipelines config --section model
+
+# Verify system setup
+uv run python -m medai_compass.pipelines verify
+```
+
+| Command | Description |
+|---------|-------------|
+| `run` | Full pipeline: data → train → evaluate |
+| `train` | Model training with LoRA/QLoRA |
+| `tune` | Hyperparameter tuning (ASHA, PBT, Hyperband) |
+| `evaluate` | Benchmark evaluation (MedQA, PubMedQA) |
+| `serve` | Ray Serve deployment with autoscaling |
+| `data` | Data processing with PHI filtering |
+| `config` | Show Hydra configuration |
+| `verify` | Verify system dependencies |
+
 ### Ray Optimization Infrastructure
 
 MedAI Compass includes a comprehensive Ray-based ML infrastructure for distributed training and serving.
@@ -526,6 +567,7 @@ Apache 2.0 License. See [LICENSE](LICENSE) for details.
 | Ray Tune HPO | ✅ Complete |
 | Ray Serve Inference | ✅ Complete |
 | Ray Actors & Workflows | ✅ Complete |
+| Pipeline CLI | ✅ Complete |
 
 ### New in Latest Release (v2.0)
 
@@ -549,6 +591,7 @@ Apache 2.0 License. See [LICENSE](LICENSE) for details.
 - **MedGemma 27B**: Default model with H100 optimization
 
 **Ray Optimization Infrastructure** (NEW):
+- **Pipeline CLI**: Unified CLI for all ML pipeline operations (`uv run python -m medai_compass.pipelines`)
 - **Hydra Configuration**: Hierarchical YAML configs for models, training, tuning, compute
 - **Ray Tune HPO**: ASHA, PBT, Hyperband schedulers for hyperparameter optimization
 - **Ray Serve**: Production inference deployment with autoscaling and health monitoring

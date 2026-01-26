@@ -8,6 +8,7 @@ Welcome to the MedAI Compass documentation. This comprehensive guide covers arch
 - [Quick Start Guide](guides/quickstart.md)
 - [Configuration](guides/configuration.md)
 - [GPU Inference Setup](guides/gpu_inference.md)
+- [Pipeline CLI](#pipeline-cli) - Unified CLI for training, tuning, and inference
 
 ### Architecture & Design
 - [System Architecture](architecture.md)
@@ -132,6 +133,32 @@ MedAI Compass uses three specialized agent frameworks:
 - **LangGraph** (Diagnostic): Stateful graph-based workflows for medical image analysis
 - **CrewAI** (Workflow): Role-based agents for clinical operations
 - **AutoGen** (Communication): Conversational agents for patient engagement
+
+### Pipeline CLI
+
+Unified command-line interface for all ML operations:
+
+```bash
+# Full training pipeline
+uv run python -m medai_compass.pipelines run --model medgemma-4b
+
+# Train with Hydra overrides
+uv run python -m medai_compass.pipelines train model=medgemma_27b
+
+# Hyperparameter tuning
+uv run python -m medai_compass.pipelines tune --scheduler asha
+
+# Model evaluation
+uv run python -m medai_compass.pipelines evaluate --checkpoint /checkpoints/final
+
+# Ray Serve deployment
+uv run python -m medai_compass.pipelines serve --port 8000
+
+# View configuration
+uv run python -m medai_compass.pipelines config
+```
+
+Commands: `run`, `train`, `tune`, `evaluate`, `serve`, `data`, `config`, `verify`
 
 ### Training Methods
 - **LoRA/QLoRA/DoRA**: Parameter-efficient fine-tuning
