@@ -198,7 +198,18 @@ class MedicalTokenizer:
             tokenized["labels"] = tokenized["input_ids"].copy() \
                 if isinstance(tokenized["input_ids"], list) \
                 else tokenized["input_ids"].clone()
-        
+
+            # Add token_type_ids (required for Gemma3/MedGemma models)
+            if "token_type_ids" not in tokenized:
+                if isinstance(tokenized["input_ids"], list):
+                    seq_len = len(tokenized["input_ids"])
+                    tokenized["token_type_ids"] = [0] * seq_len
+                else:
+                    # Tensor
+                    tokenized["token_type_ids"] = tokenized["input_ids"].new_zeros(
+                        tokenized["input_ids"].shape
+                    )
+
         return tokenized
     
     def tokenize_batch(

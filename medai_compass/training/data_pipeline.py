@@ -269,7 +269,13 @@ class MedicalDataPipeline:
             )
             
             tokenized["labels"] = tokenized["input_ids"].copy()
-            
+
+            # Add token_type_ids (required for Gemma3/MedGemma models)
+            if "token_type_ids" not in tokenized:
+                batch_size = len(tokenized["input_ids"])
+                seq_len = len(tokenized["input_ids"][0]) if batch_size > 0 else 0
+                tokenized["token_type_ids"] = [[0] * seq_len for _ in range(batch_size)]
+
             return tokenized
         
         return dataset.map(
