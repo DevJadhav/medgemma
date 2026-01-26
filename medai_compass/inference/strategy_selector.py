@@ -13,7 +13,7 @@ different inference backends:
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -64,13 +64,13 @@ class InferenceBackend:
     """
     name: str
     config: InferenceBackendConfig = field(default_factory=InferenceBackendConfig)
-    _engine_class: Optional[Type] = None
+    _engine_class: type | None = None
 
     def is_valid(self) -> bool:
         """Check if backend configuration is valid."""
         return self.name is not None
 
-    def create_engine(self, model_path: Optional[str] = None, **kwargs) -> Any:
+    def create_engine(self, model_path: str | None = None, **kwargs) -> Any:
         """Create an inference engine for this backend."""
         if self._engine_class is None:
             return MockInferenceEngine(self)
@@ -84,7 +84,7 @@ class MockInferenceEngine:
     def __init__(self, backend: InferenceBackend):
         self.backend = backend
 
-    def generate(self, prompts: List[str], **kwargs) -> List[str]:
+    def generate(self, prompts: list[str], **kwargs) -> list[str]:
         logger.info(f"MockInferenceEngine.generate called for backend: {self.backend.name}")
         return [f"Mock response for: {p[:50]}..." for p in prompts]
 
@@ -109,7 +109,7 @@ class InferenceStrategySelector:
         """Initialize the inference strategy selector."""
         self._backends = self._build_backend_registry()
 
-    def _build_backend_registry(self) -> Dict[str, BackendType]:
+    def _build_backend_registry(self) -> dict[str, BackendType]:
         """Build registry of available backends."""
         return {
             "vllm": BackendType.VLLM,
@@ -119,7 +119,7 @@ class InferenceStrategySelector:
             "modal": BackendType.MODAL,
         }
 
-    def list_backends(self) -> List[str]:
+    def list_backends(self) -> list[str]:
         """
         List all available inference backends.
 
@@ -170,8 +170,8 @@ class InferenceStrategySelector:
     def auto_select(
         self,
         priority: str = "balanced",
-        max_latency_ms: Optional[float] = None,
-        min_throughput_rps: Optional[float] = None,
+        max_latency_ms: float | None = None,
+        min_throughput_rps: float | None = None,
         batch_size: int = 1,
         num_gpus: int = 1,
     ) -> InferenceBackend:

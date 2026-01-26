@@ -11,21 +11,20 @@ Memory savings: Up to 4x reduction in gradient memory
 Speed improvement: Up to 2x faster backward pass
 """
 
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Optional, Tuple
-import math
 
 
 def check_triton_available() -> bool:
     """Check if Triton is available for fused kernels."""
-    try:
-        import triton
-        import triton.language as tl
-        return True
-    except ImportError:
-        return False
+    import importlib.util
+
+    return (
+        importlib.util.find_spec("triton") is not None
+        and importlib.util.find_spec("triton.language") is not None
+    )
 
 
 # =============================================================================
@@ -49,7 +48,7 @@ class FusedCrossEntropyFunction(torch.autograd.Function):
         ctx,
         logits: torch.Tensor,
         labels: torch.Tensor,
-        soft_cap: Optional[float] = None,
+        soft_cap: float | None = None,
         reduction: str = "mean",
         ignore_index: int = -100,
     ) -> torch.Tensor:
@@ -97,7 +96,7 @@ class FusedCrossEntropyFunction(torch.autograd.Function):
             return loss.view(batch_size, seq_len)
 
     @staticmethod
-    def backward(ctx, grad_output: torch.Tensor) -> Tuple[Optional[torch.Tensor], ...]:
+    def backward(ctx, grad_output: torch.Tensor) -> tuple[torch.Tensor | None, ...]:
         """Memory-efficient backward pass."""
         logits, labels = ctx.saved_tensors
         soft_cap = ctx.soft_cap
@@ -164,7 +163,7 @@ class FusedCrossEntropy(nn.Module):
 
     def __init__(
         self,
-        soft_cap: Optional[float] = None,
+        soft_cap: float | None = None,
         reduction: str = "mean",
         ignore_index: int = -100,
     ):
@@ -183,7 +182,7 @@ class FusedCrossEntropy(nn.Module):
 def fused_cross_entropy(
     logits: torch.Tensor,
     labels: torch.Tensor,
-    soft_cap: Optional[float] = None,
+    soft_cap: float | None = None,
     reduction: str = "mean",
     ignore_index: int = -100,
 ) -> torch.Tensor:
@@ -285,8 +284,8 @@ class FusedRoPE(nn.Module):
         self,
         q: torch.Tensor,
         k: torch.Tensor,
-        positions: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        positions: torch.Tensor | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Apply rotary embeddings to query and key tensors.
 
@@ -340,7 +339,7 @@ def fused_rope_forward(
     k: torch.Tensor,
     cos: torch.Tensor,
     sin: torch.Tensor,
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Functional interface for fused RoPE forward pass.
 

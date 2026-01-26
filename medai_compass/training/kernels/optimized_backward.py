@@ -12,14 +12,13 @@ Combined optimizations can achieve:
 - Up to 50% memory reduction through selective recomputation
 """
 
-import torch
-import torch.nn as nn
-import torch.distributed as dist
-from typing import Optional, List, Dict, Any, Callable, Union
-from dataclasses import dataclass, field
 import threading
-from collections import defaultdict
+from dataclasses import dataclass
+from typing import Any
 
+import torch
+import torch.distributed as dist
+import torch.nn as nn
 
 # =============================================================================
 # Async Gradient Reducer
@@ -42,7 +41,7 @@ class AsyncGradientReducer:
     def __init__(
         self,
         overlap_comm: bool = True,
-        process_group: Optional[Any] = None,
+        process_group: Any | None = None,
         bucket_cap_mb: float = 25.0,
     ):
         """
@@ -57,14 +56,14 @@ class AsyncGradientReducer:
         self.process_group = process_group
         self.bucket_cap_mb = bucket_cap_mb
 
-        self._pending_handles: List[Any] = []
+        self._pending_handles: list[Any] = []
         self._lock = threading.Lock()
 
     def reduce(
         self,
-        gradients: Union[torch.Tensor, List[torch.Tensor]],
+        gradients: torch.Tensor | list[torch.Tensor],
         async_op: bool = True,
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """
         Reduce gradients across processes.
 
@@ -141,7 +140,7 @@ class GradientBucketizer:
     def __init__(
         self,
         bucket_size_mb: float = 25.0,
-        process_group: Optional[Any] = None,
+        process_group: Any | None = None,
     ):
         """
         Initialize GradientBucketizer.
@@ -154,9 +153,9 @@ class GradientBucketizer:
         self.process_group = process_group
 
         self._bucket_size_bytes = int(bucket_size_mb * 1024 * 1024)
-        self._current_bucket: List[torch.Tensor] = []
+        self._current_bucket: list[torch.Tensor] = []
         self._current_size: int = 0
-        self._pending_handles: List[Any] = []
+        self._pending_handles: list[Any] = []
 
     def add_gradient(self, gradient: torch.Tensor) -> None:
         """
@@ -261,12 +260,12 @@ class SelectiveRecomputation:
         self.checkpoint_ratio = checkpoint_ratio
         self.preserve_rng_state = preserve_rng_state
 
-        self._layer_costs: Dict[str, float] = {}
+        self._layer_costs: dict[str, float] = {}
 
     def wrap_module(
         self,
         module: nn.Module,
-        layer_name: Optional[str] = None,
+        layer_name: str | None = None,
     ) -> nn.Module:
         """
         Wrap a module for selective recomputation.
@@ -373,14 +372,14 @@ class GradientCompression:
         self.dtype = dtype
         self.error_feedback = error_feedback
 
-        self._error_buffer: Dict[int, torch.Tensor] = {}
-        self._scale_buffer: Dict[int, float] = {}
+        self._error_buffer: dict[int, torch.Tensor] = {}
+        self._scale_buffer: dict[int, float] = {}
 
     def compress(
         self,
         gradient: torch.Tensor,
-        tensor_id: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        tensor_id: int | None = None,
+    ) -> dict[str, Any]:
         """
         Compress a gradient tensor.
 
@@ -427,7 +426,7 @@ class GradientCompression:
 
     def decompress(
         self,
-        compressed: Dict[str, Any],
+        compressed: dict[str, Any],
     ) -> torch.Tensor:
         """
         Decompress a gradient tensor.
@@ -487,10 +486,10 @@ class OptimizedBackward:
         async_reduce: bool = True,
         use_bucketing: bool = True,
         selective_recomputation: bool = False,
-        gradient_compression: Optional[str] = None,
+        gradient_compression: str | None = None,
         bucket_size_mb: float = 25.0,
         checkpoint_ratio: float = 0.5,
-        process_group: Optional[Any] = None,
+        process_group: Any | None = None,
     ):
         """
         Initialize OptimizedBackward.
@@ -623,7 +622,7 @@ class BackwardConfig:
     async_reduce: bool = True
     use_bucketing: bool = True
     selective_recomputation: bool = False
-    gradient_compression: Optional[str] = None
+    gradient_compression: str | None = None
     bucket_size_mb: float = 25.0
     checkpoint_ratio: float = 0.5
 

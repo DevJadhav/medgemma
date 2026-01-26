@@ -11,32 +11,25 @@ Provides high-performance training with:
 """
 
 import logging
-import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union, Callable
-from concurrent.futures import ProcessPoolExecutor
-import threading
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 def check_transformer_engine_available() -> bool:
     """Check if NVIDIA Transformer Engine is available."""
-    try:
-        import transformer_engine
-        return True
-    except ImportError:
-        return False
+    import importlib.util
+
+    return importlib.util.find_spec("transformer_engine") is not None
 
 
 def check_fsdp_available() -> bool:
     """Check if FSDP is available."""
-    try:
-        from torch.distributed.fsdp import FullyShardedDataParallel
-        return True
-    except ImportError:
-        return False
+    import importlib.util
+
+    return importlib.util.find_spec("torch.distributed.fsdp") is not None
 
 
 # =============================================================================
@@ -76,7 +69,7 @@ class H100TrainingConfig:
 
     # Gradient checkpointing
     gradient_checkpointing: bool = True
-    gradient_checkpointing_kwargs: Dict[str, Any] = field(default_factory=dict)
+    gradient_checkpointing_kwargs: dict[str, Any] = field(default_factory=dict)
 
     # FSDP settings
     use_fsdp: bool = False
@@ -137,7 +130,7 @@ class H100TrainingConfig:
             **kwargs
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "model_name": self.model_name,
@@ -183,11 +176,9 @@ class RayDataDICOMLoader:
 
     def _check_ray_available(self) -> bool:
         """Check if Ray is available."""
-        try:
-            import ray
-            return True
-        except ImportError:
-            return False
+        import importlib.util
+
+        return importlib.util.find_spec("ray") is not None
 
     def load_dataset(
         self,
@@ -232,9 +223,9 @@ class RayDataDICOMLoader:
 
     def preprocess_batch(
         self,
-        batch: Dict[str, Any],
-        target_size: Tuple[int, int] = (896, 896),
-    ) -> Dict[str, Any]:
+        batch: dict[str, Any],
+        target_size: tuple[int, int] = (896, 896),
+    ) -> dict[str, Any]:
         """
         Preprocess batch of DICOM data.
 
@@ -330,7 +321,7 @@ class RayDICOMDataset:
     def __init__(
         self,
         data_dir: str = "data/mimic_cxr",
-        labels_path: Optional[str] = None,
+        labels_path: str | None = None,
         multimodal: bool = True,
         shuffle: bool = True,
         shuffle_buffer_size: int = 10000,
@@ -352,7 +343,7 @@ class RayDICOMDataset:
 
         return self._dataset
 
-    def format_for_training(self, batch: Dict[str, Any]) -> Dict[str, Any]:
+    def format_for_training(self, batch: dict[str, Any]) -> dict[str, Any]:
         """Format batch for training."""
         # Add text prompts for multimodal training
         if self.multimodal:
@@ -371,7 +362,7 @@ class RayDICOMDataset:
     def split(
         self,
         train_ratio: float = 0.9,
-    ) -> Tuple["RayDICOMDataset", "RayDICOMDataset"]:
+    ) -> tuple["RayDICOMDataset", "RayDICOMDataset"]:
         """Split dataset into train and validation."""
         train_ds = RayDICOMDataset(
             data_dir=self.data_dir,
@@ -427,12 +418,11 @@ class FSDPTrainer:
         try:
             import torch
             from torch.distributed.fsdp import (
-                FullyShardedDataParallel,
-                ShardingStrategy,
-                MixedPrecision,
                 CPUOffload,
+                FullyShardedDataParallel,
+                MixedPrecision,
+                ShardingStrategy,
             )
-            from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 
             # Determine sharding strategy
             strategy_map = {
@@ -490,7 +480,6 @@ class FSDPTrainer:
             from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
                 apply_activation_checkpointing,
                 checkpoint_wrapper,
-                CheckpointImpl,
             )
 
             # Apply to transformer layers
@@ -517,7 +506,7 @@ class OptimizedTrainer:
     def __init__(
         self,
         model_name: str = "medgemma-27b",
-        config: Optional[H100TrainingConfig] = None,
+        config: H100TrainingConfig | None = None,
         auto_optimize: bool = True,
         use_flash_attention_2: bool = True,
         use_ray_data: bool = True,
@@ -526,8 +515,8 @@ class OptimizedTrainer:
         checkpoint_every_n_layers: int = 1,
         offload_optimizer_state: bool = False,
         log_to_mlflow: bool = False,
-        gradient_accumulation_steps: Optional[int] = None,
-        gradient_accumulation_kwargs: Optional[Dict[str, Any]] = None,
+        gradient_accumulation_steps: int | None = None,
+        gradient_accumulation_kwargs: dict[str, Any] | None = None,
     ):
         self.model_name = model_name
         self.config = config or H100TrainingConfig.for_model(model_name)
@@ -548,7 +537,7 @@ class OptimizedTrainer:
         self._scheduler = None
         self._trainer = None
 
-        self.detected_optimizations: List[str] = []
+        self.detected_optimizations: list[str] = []
 
         if auto_optimize:
             self._detect_optimizations()
@@ -568,15 +557,14 @@ class OptimizedTrainer:
         if check_transformer_engine_available():
             self.detected_optimizations.append("transformer_engine")
 
-        try:
-            import ray
+        import importlib.util
+
+        if importlib.util.find_spec("ray") is not None:
             self.detected_optimizations.append("ray_data")
-        except ImportError:
-            pass
 
         logger.info(f"Detected training optimizations: {self.detected_optimizations}")
 
-    def estimate_memory_savings(self) -> Dict[str, float]:
+    def estimate_memory_savings(self) -> dict[str, float]:
         """Estimate memory savings from optimizations."""
         savings = {}
 
@@ -594,10 +582,10 @@ class OptimizedTrainer:
     def train(
         self,
         train_dataset: Any,
-        eval_dataset: Optional[Any] = None,
-        callbacks: Optional[List[Any]] = None,
-        resume_from_checkpoint: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        eval_dataset: Any | None = None,
+        callbacks: list[Any] | None = None,
+        resume_from_checkpoint: str | None = None,
+    ) -> dict[str, Any]:
         """
         Run training.
 
@@ -651,7 +639,7 @@ class OptimizedTrainer:
             "metrics": result.metrics if hasattr(result, "metrics") else {},
         }
 
-    def evaluate(self, eval_dataset: Any) -> Dict[str, float]:
+    def evaluate(self, eval_dataset: Any) -> dict[str, float]:
         """Evaluate model on dataset."""
         if self._trainer is None:
             raise RuntimeError("Trainer not initialized. Call train() first.")
@@ -703,7 +691,7 @@ class OptimizedTrainer:
 
         logger.info("Model loaded with optimizations")
 
-    def save_checkpoint(self, output_dir: str, step: Optional[int] = None) -> str:
+    def save_checkpoint(self, output_dir: str, step: int | None = None) -> str:
         """Save checkpoint."""
         if self._trainer is not None:
             self._trainer.save_model(output_dir)
@@ -725,7 +713,7 @@ class OptimizedTrainer:
             logger.error(f"Failed to load checkpoint: {e}")
             raise
 
-    def get_training_metrics(self) -> Dict[str, Any]:
+    def get_training_metrics(self) -> dict[str, Any]:
         """Get training metrics."""
         if self._trainer is None:
             return {}
@@ -749,12 +737,12 @@ class ThroughputTracker:
     """
 
     def __init__(self):
-        self._step_times: List[float] = []
-        self._step_samples: List[int] = []
-        self._step_tokens: List[int] = []
-        self._start_time: Optional[float] = None
-        self._gpu_utils: List[float] = []
-        self._gpu_memory: List[float] = []
+        self._step_times: list[float] = []
+        self._step_samples: list[int] = []
+        self._step_tokens: list[int] = []
+        self._start_time: float | None = None
+        self._gpu_utils: list[float] = []
+        self._gpu_memory: list[float] = []
 
         self.samples_per_second: float = 0.0
         self.tokens_per_second: float = 0.0
@@ -812,8 +800,8 @@ class ThroughputTracker:
 
     def compare_with_baseline(
         self,
-        baseline: Dict[str, float],
-    ) -> Dict[str, float]:
+        baseline: dict[str, float],
+    ) -> dict[str, float]:
         """Compare with baseline performance."""
         comparison = {}
 
@@ -833,7 +821,7 @@ class ThroughputTracker:
 
         return comparison
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get throughput summary."""
         return {
             "samples_per_second": self.samples_per_second,
@@ -862,7 +850,7 @@ class DICOMTrainingPipeline:
         model_name: str = "medgemma-27b",
         cache_preprocessed: bool = True,
         cache_dir: str = "/tmp/dicom_cache",
-        augmentations: Optional[List[str]] = None,
+        augmentations: list[str] | None = None,
         multiview: bool = False,
         handle_3d_series: bool = False,
     ):
@@ -883,7 +871,7 @@ class DICOMTrainingPipeline:
         volume: Any,
         num_slices: int = 5,
         plane: str = "axial",
-    ) -> List[Any]:
+    ) -> list[Any]:
         """Extract slices from 3D volume."""
         import numpy as np
 
@@ -908,7 +896,7 @@ class DICOMTrainingPipeline:
 
         return slices
 
-    def prepare_data(self) -> Tuple[Any, Any]:
+    def prepare_data(self) -> tuple[Any, Any]:
         """Prepare training and validation data."""
         # Load dataset
         self._dataset = RayDICOMDataset(
@@ -923,8 +911,8 @@ class DICOMTrainingPipeline:
 
     def run(
         self,
-        config: Optional[H100TrainingConfig] = None,
-    ) -> Dict[str, Any]:
+        config: H100TrainingConfig | None = None,
+    ) -> dict[str, Any]:
         """Run training pipeline."""
         config = config or H100TrainingConfig.for_model(self.model_name)
 
@@ -1033,7 +1021,7 @@ class OptimizedTrainingPipeline:
         data_dir: str = "data/mimic_cxr",
         use_ray: bool = True,
         num_workers: int = 8,  # 8 GPUs for 27B model
-        config: Optional[H100TrainingConfig] = None,
+        config: H100TrainingConfig | None = None,
     ):
         self.model_name = model_name
         self.data_dir = data_dir
@@ -1065,7 +1053,7 @@ class OptimizedTrainingPipeline:
 
         return True
 
-    def dry_run(self) -> Dict[str, Any]:
+    def dry_run(self) -> dict[str, Any]:
         """Run pipeline in dry-run mode for validation."""
         return {
             "config_valid": self.validate_config(),
@@ -1075,7 +1063,7 @@ class OptimizedTrainingPipeline:
             "optimizations": self._detect_optimizations(),
         }
 
-    def _detect_optimizations(self) -> List[str]:
+    def _detect_optimizations(self) -> list[str]:
         """Detect available optimizations."""
         optimizations = []
 
@@ -1092,15 +1080,14 @@ class OptimizedTrainingPipeline:
         if check_transformer_engine_available():
             optimizations.append("transformer_engine")
 
-        try:
-            import ray
+        import importlib.util
+
+        if importlib.util.find_spec("ray") is not None:
             optimizations.append("ray_data")
-        except ImportError:
-            pass
 
         return optimizations
 
-    def run(self) -> Dict[str, Any]:
+    def run(self) -> dict[str, Any]:
         """Run training pipeline."""
         # Apply H100 optimizations
         self._h100_optimizer.apply_all_optimizations()
@@ -1116,7 +1103,7 @@ class OptimizedTrainingPipeline:
 
         return result
 
-    async def run_async(self) -> Dict[str, Any]:
+    async def run_async(self) -> dict[str, Any]:
         """Run training pipeline asynchronously."""
         import asyncio
 

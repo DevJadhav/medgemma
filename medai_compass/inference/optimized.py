@@ -12,13 +12,13 @@ Provides high-performance inference with:
 
 import logging
 import os
-import time
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 import threading
+import time
 from collections import deque
+from collections.abc import Callable
+from concurrent.futures import ProcessPoolExecutor
+from dataclasses import dataclass, field
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +34,10 @@ def check_flash_attention_available() -> bool:
             return False
 
         # Check for flash_attn package
-        try:
-            import flash_attn
+        import importlib.util
+
+        if importlib.util.find_spec("flash_attn") is not None:
             return True
-        except ImportError:
-            pass
 
         # Check if PyTorch has built-in flash attention
         if hasattr(torch.nn.functional, "scaled_dot_product_attention"):
@@ -79,7 +78,7 @@ class H100InferenceConfig:
 
     # CUDA Graphs
     use_cuda_graphs: bool = True
-    cuda_graph_batch_sizes: List[int] = field(default_factory=lambda: [1, 2, 4, 8, 16])
+    cuda_graph_batch_sizes: list[int] = field(default_factory=lambda: [1, 2, 4, 8, 16])
 
     # Tensor Cores
     use_tensor_cores: bool = True
@@ -124,7 +123,7 @@ class H100InferenceConfig:
     triton_http_port: int = 8000
     triton_metrics_port: int = 8002
     triton_max_batch_size: int = 32
-    triton_preferred_batch_sizes: List[int] = field(default_factory=lambda: [1, 4, 8, 16, 32])
+    triton_preferred_batch_sizes: list[int] = field(default_factory=lambda: [1, 4, 8, 16, 32])
     triton_max_queue_delay_microseconds: int = 100000  # 100ms
 
     # DICOM Settings
@@ -157,7 +156,7 @@ class H100InferenceConfig:
                 **kwargs
             )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "use_flash_attention_2": self.use_flash_attention_2,
@@ -210,9 +209,9 @@ class OptimizedModelLoader:
     def load_model(
         self,
         model_name: str,
-        quantization_config: Optional[Any] = None,
+        quantization_config: Any | None = None,
         device_map: str = "auto",
-    ) -> Tuple[Any, Any]:
+    ) -> tuple[Any, Any]:
         """
         Load model with optimized settings.
 
@@ -277,14 +276,14 @@ class CUDAGraphRunner:
 
     def __init__(
         self,
-        batch_sizes: Optional[List[int]] = None,
+        batch_sizes: list[int] | None = None,
         warmup_iterations: int = 3,
     ):
         self.supported_batch_sizes = set(batch_sizes or [1, 2, 4, 8, 16])
         self.warmup_iterations = warmup_iterations
-        self._graphs: Dict[int, Any] = {}
-        self._static_inputs: Dict[int, Any] = {}
-        self._static_outputs: Dict[int, Any] = {}
+        self._graphs: dict[int, Any] = {}
+        self._static_inputs: dict[int, Any] = {}
+        self._static_outputs: dict[int, Any] = {}
         self.is_warmed_up = False
         self._available = check_cuda_graphs_available()
 
@@ -300,9 +299,9 @@ class CUDAGraphRunner:
             logger.warning("CUDA Graphs not available, skipping warmup")
             return
 
-        try:
-            import torch
-        except ImportError:
+        import importlib.util
+
+        if importlib.util.find_spec("torch") is None:
             return
 
         logger.info("Warming up CUDA graphs...")
@@ -407,8 +406,8 @@ class KVCacheManager:
         self.num_heads = num_heads
         self.head_dim = head_dim
 
-        self._cache_pool: List[Any] = []
-        self._active_caches: Dict[int, Any] = {}
+        self._cache_pool: list[Any] = []
+        self._active_caches: dict[int, Any] = {}
         self._lock = threading.Lock()
 
     def quantize_cache(self, cache: Any) -> Any:
@@ -507,7 +506,7 @@ class DynamicBatcher:
         self,
         request_id: int,
         inputs: Any,
-        callback: Optional[callable] = None,
+        callback: Callable | None = None,
     ) -> None:
         """Add request to pending queue."""
         with self._lock:
@@ -521,7 +520,7 @@ class DynamicBatcher:
             if len(self._pending_requests) >= self.max_batch_size:
                 self._batch_ready.set()
 
-    def get_batch(self, timeout_ms: Optional[int] = None) -> List[Dict[str, Any]]:
+    def get_batch(self, timeout_ms: int | None = None) -> list[dict[str, Any]]:
         """
         Get batch of requests for processing.
 
@@ -546,7 +545,7 @@ class DynamicBatcher:
 
             return batch
 
-    def pad_batch(self, batch: List[Any], target_length: int) -> List[Any]:
+    def pad_batch(self, batch: list[Any], target_length: int) -> list[Any]:
         """Pad batch to multiple for tensor core efficiency."""
         current_size = len(batch)
         padded_size = ((current_size + self.pad_to_multiple - 1)
@@ -594,7 +593,7 @@ class VLLMInferenceEngine:
     def initialize(self) -> None:
         """Initialize vLLM engine."""
         try:
-            from vllm import LLM, SamplingParams
+            from vllm import LLM
         except ImportError:
             logger.warning("vLLM not available, using fallback")
             return
@@ -615,11 +614,11 @@ class VLLMInferenceEngine:
 
     def generate(
         self,
-        prompts: Union[str, List[str]],
+        prompts: str | list[str],
         max_tokens: int = 256,
         temperature: float = 0.7,
         top_p: float = 0.9,
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Generate completions for prompts.
 
@@ -670,8 +669,8 @@ class RayServeEngine:
         model_name: str = "medgemma-27b",
         num_replicas: int = 1,
         max_concurrent_queries: int = 100,
-        autoscaling_config: Optional[Dict[str, Any]] = None,
-        ray_actor_options: Optional[Dict[str, Any]] = None,
+        autoscaling_config: dict[str, Any] | None = None,
+        ray_actor_options: dict[str, Any] | None = None,
     ):
         self.model_name = model_name
         self.num_replicas = num_replicas
@@ -728,7 +727,7 @@ class RayServeEngine:
                 )
                 logger.info(f"Model {model_name} loaded on Ray Serve replica")
 
-            async def __call__(self, request: Dict[str, Any]) -> Dict[str, Any]:
+            async def __call__(self, request: dict[str, Any]) -> dict[str, Any]:
                 import torch
 
                 prompt = request.get("prompt", "")
@@ -775,10 +774,10 @@ class RayServeEngine:
 
     async def generate(
         self,
-        prompts: Union[str, List[str]],
+        prompts: str | list[str],
         max_tokens: int = 256,
         temperature: float = 0.7,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Generate completions using Ray Serve.
 
@@ -839,7 +838,7 @@ class TritonInferenceEngine:
         grpc_url: str = "localhost:8001",
         http_url: str = "localhost:8000",
         max_batch_size: int = 32,
-        preferred_batch_sizes: Optional[List[int]] = None,
+        preferred_batch_sizes: list[int] | None = None,
         max_queue_delay_microseconds: int = 100000,
     ):
         self.model_name = model_name
@@ -853,7 +852,7 @@ class TritonInferenceEngine:
         self._client = None
         self._initialized = False
 
-    def _create_model_config(self) -> Dict[str, Any]:
+    def _create_model_config(self) -> dict[str, Any]:
         """Create Triton model configuration."""
         return {
             "name": self.model_name,
@@ -945,10 +944,10 @@ class TritonInferenceEngine:
 
     def generate(
         self,
-        prompts: Union[str, List[str]],
+        prompts: str | list[str],
         max_tokens: int = 256,
         temperature: float = 0.7,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Generate completions using Triton Inference Server.
 
@@ -976,8 +975,8 @@ class TritonInferenceEngine:
                 # Tokenize prompt (would need tokenizer)
                 # For now, create mock inference request
                 if self._client_type == "grpc":
-                    import tritonclient.grpc as grpcclient
                     import numpy as np
+                    import tritonclient.grpc as grpcclient
 
                     # Create input tensors
                     input_data = np.array([[ord(c) for c in prompt[:512]]], dtype=np.int64)
@@ -998,8 +997,8 @@ class TritonInferenceEngine:
                         outputs=outputs,
                     )
 
-                    # Process output
-                    logits = response.as_numpy("logits")
+                    # Process output (logits available in response)
+                    _ = response.as_numpy("logits")  # Available for further processing
                     results.append({
                         "response": f"[Triton inference for prompt: {prompt[:50]}...]",
                         "model": self.model_name,
@@ -1022,7 +1021,7 @@ class TritonInferenceEngine:
 
         return results
 
-    def get_model_metadata(self) -> Dict[str, Any]:
+    def get_model_metadata(self) -> dict[str, Any]:
         """Get model metadata from Triton server."""
         if not self.is_model_ready():
             return {"error": "Model not ready"}
@@ -1038,7 +1037,7 @@ class TritonInferenceEngine:
         except Exception as e:
             return {"error": str(e)}
 
-    def get_server_metadata(self) -> Dict[str, Any]:
+    def get_server_metadata(self) -> dict[str, Any]:
         """Get Triton server metadata."""
         if not self._initialized:
             self.initialize()
@@ -1074,9 +1073,9 @@ class ProductionServingFactory:
     def create(
         cls,
         backend: str,
-        config: Optional[H100InferenceConfig] = None,
+        config: H100InferenceConfig | None = None,
         **kwargs,
-    ) -> Union[VLLMInferenceEngine, RayServeEngine, TritonInferenceEngine]:
+    ) -> VLLMInferenceEngine | RayServeEngine | TritonInferenceEngine:
         """
         Create a serving engine based on the specified backend.
 
@@ -1187,9 +1186,9 @@ class ParallelDICOMLoader:
         self.prefetch_count = prefetch_count
 
         self._executor = ProcessPoolExecutor(max_workers=num_workers)
-        self._cache: Dict[str, Any] = {}
+        self._cache: dict[str, Any] = {}
 
-    def load_batch(self, file_paths: List[str]) -> List[Any]:
+    def load_batch(self, file_paths: list[str]) -> list[Any]:
         """
         Load batch of DICOM files in parallel.
 
@@ -1215,7 +1214,7 @@ class ParallelDICOMLoader:
 
         return results
 
-    def _load_single(self, file_path: str) -> Optional[Dict[str, Any]]:
+    def _load_single(self, file_path: str) -> dict[str, Any] | None:
         """Load single DICOM file."""
         try:
             import pydicom
@@ -1244,9 +1243,9 @@ class ParallelDICOMLoader:
 
     def preprocess_batch(
         self,
-        dicom_data: List[Dict[str, Any]],
-        target_size: Tuple[int, int] = (896, 896),
-    ) -> List[Any]:
+        dicom_data: list[dict[str, Any]],
+        target_size: tuple[int, int] = (896, 896),
+    ) -> list[Any]:
         """
         Preprocess batch of DICOM data.
 
@@ -1333,13 +1332,13 @@ class DICOMPreprocessingCache:
         self.max_size_bytes = int(max_size_gb * 1024 * 1024 * 1024)
         self.eviction_policy = eviction_policy
 
-        self._cache: Dict[str, Any] = {}
-        self._access_times: Dict[str, float] = {}
-        self._sizes: Dict[str, int] = {}
+        self._cache: dict[str, Any] = {}
+        self._access_times: dict[str, float] = {}
+        self._sizes: dict[str, int] = {}
         self._current_size = 0
         self._lock = threading.Lock()
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         """Get item from cache."""
         with self._lock:
             if key in self._cache:
@@ -1347,7 +1346,7 @@ class DICOMPreprocessingCache:
                 return self._cache[key]
             return None
 
-    def put(self, key: str, value: Any, size_bytes: Optional[int] = None) -> None:
+    def put(self, key: str, value: Any, size_bytes: int | None = None) -> None:
         """Put item in cache."""
         if size_bytes is None:
             # Estimate size
@@ -1405,7 +1404,7 @@ class GPUImagePreprocessor:
     def __init__(
         self,
         use_gpu: bool = True,
-        target_size: Tuple[int, int] = (896, 896),
+        target_size: tuple[int, int] = (896, 896),
         normalize: bool = True,
     ):
         self.use_gpu = use_gpu and self._check_gpu_available()
@@ -1422,7 +1421,7 @@ class GPUImagePreprocessor:
 
     def preprocess_batch(
         self,
-        images: List[Any],
+        images: list[Any],
         device: str = "cuda",
     ) -> Any:
         """
@@ -1436,10 +1435,10 @@ class GPUImagePreprocessor:
             Batch tensor on device
         """
         try:
+            import numpy as np
             import torch
             import torchvision.transforms.functional as TF
             from PIL import Image
-            import numpy as np
         except ImportError:
             # Fallback to CPU processing
             return self._preprocess_cpu(images)
@@ -1480,7 +1479,7 @@ class GPUImagePreprocessor:
 
         return batch
 
-    def _preprocess_cpu(self, images: List[Any]) -> Any:
+    def _preprocess_cpu(self, images: list[Any]) -> Any:
         """CPU fallback for preprocessing."""
         import numpy as np
         from PIL import Image
@@ -1519,18 +1518,18 @@ class ThroughputBenchmark:
     """
 
     def __init__(self):
-        self._results: List[Dict[str, Any]] = []
-        self._baseline: Optional[Dict[str, float]] = None
+        self._results: list[dict[str, Any]] = []
+        self._baseline: dict[str, float] | None = None
         self.tokens_per_second: float = 0.0
-        self._latencies: List[float] = []
+        self._latencies: list[float] = []
 
     def run(
         self,
         inference_fn: callable,
-        prompts: List[str],
+        prompts: list[str],
         num_iterations: int = 100,
         warmup_iterations: int = 10,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Run throughput benchmark.
 
@@ -1581,7 +1580,7 @@ class ThroughputBenchmark:
         self._results.append(results)
         return results
 
-    def get_latency_percentiles(self) -> Dict[str, float]:
+    def get_latency_percentiles(self) -> dict[str, float]:
         """Get latency percentiles."""
         import numpy as np
 
@@ -1594,7 +1593,7 @@ class ThroughputBenchmark:
             "p99": float(np.percentile(self._latencies, 99)),
         }
 
-    def compare_with_baseline(self, baseline: Dict[str, float]) -> Dict[str, float]:
+    def compare_with_baseline(self, baseline: dict[str, float]) -> dict[str, float]:
         """Compare current results with baseline."""
         if not self._results:
             return {}
@@ -1630,7 +1629,7 @@ class OptimizedInferenceService:
 
     def __init__(
         self,
-        config: Optional[H100InferenceConfig] = None,
+        config: H100InferenceConfig | None = None,
         auto_optimize: bool = True,
     ):
         self.config = config or H100InferenceConfig()
@@ -1647,13 +1646,15 @@ class OptimizedInferenceService:
         self._dicom_cache = None
         self._gpu_preprocessor = None
 
-        self.detected_optimizations: List[str] = []
+        self.detected_optimizations: list[str] = []
 
         if auto_optimize:
             self._detect_optimizations()
 
     def _detect_optimizations(self) -> None:
         """Detect available optimizations."""
+        import importlib.util
+
         if check_flash_attention_available():
             self.detected_optimizations.append("flash_attention_2")
 
@@ -1662,6 +1663,7 @@ class OptimizedInferenceService:
 
         try:
             import torch
+
             if torch.cuda.is_available():
                 capability = torch.cuda.get_device_capability()
                 if capability[0] >= 9:  # H100 is SM 9.0
@@ -1670,15 +1672,12 @@ class OptimizedInferenceService:
         except ImportError:
             pass
 
-        try:
-            import vllm
+        if importlib.util.find_spec("vllm") is not None:
             self.detected_optimizations.append("vllm")
-        except ImportError:
-            pass
 
         logger.info(f"Detected optimizations: {self.detected_optimizations}")
 
-    def detect_gpu_type(self) -> Dict[str, Any]:
+    def detect_gpu_type(self) -> dict[str, Any]:
         """Detect GPU type and capabilities."""
         try:
             import torch
@@ -1698,7 +1697,7 @@ class OptimizedInferenceService:
         except Exception as e:
             return {"type": "unknown", "available": False, "error": str(e)}
 
-    def initialize(self, model_name: Optional[str] = None) -> None:
+    def initialize(self, model_name: str | None = None) -> None:
         """Initialize all components."""
         model_name = model_name or self.config.model_name
 
@@ -1783,10 +1782,10 @@ class OptimizedInferenceService:
 
     def generate_batch(
         self,
-        prompts: List[str],
+        prompts: list[str],
         max_tokens: int = 256,
         temperature: float = 0.7,
-    ) -> List[str]:
+    ) -> list[str]:
         """Generate completions for batch of prompts."""
         if self._vllm_engine is not None:
             return self._vllm_engine.generate(
@@ -1798,8 +1797,8 @@ class OptimizedInferenceService:
     def analyze_dicom(
         self,
         file_path: str,
-        prompt: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        prompt: str | None = None,
+    ) -> dict[str, Any]:
         """
         Analyze single DICOM file.
 
@@ -1839,13 +1838,13 @@ class OptimizedInferenceService:
 
     def analyze_dicom_batch(
         self,
-        file_paths: List[str],
-        prompt: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        file_paths: list[str],
+        prompt: str | None = None,
+    ) -> list[dict[str, Any]]:
         """Analyze batch of DICOM files."""
         return [self.analyze_dicom(fp, prompt) for fp in file_paths]
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         """Get performance metrics."""
         gpu_info = self.detect_gpu_type()
 

@@ -14,7 +14,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -119,11 +119,11 @@ class GenerationRequest:
     temperature: float = 0.1
     top_p: float = 0.9
     top_k: int = 50
-    stop_sequences: List[str] = field(default_factory=list)
+    stop_sequences: list[str] = field(default_factory=list)
     stream: bool = False
-    request_id: Optional[str] = None
+    request_id: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "prompt": self.prompt,
@@ -143,12 +143,12 @@ class GenerationResponse:
 
     text: str
     model: str
-    request_id: Optional[str] = None
+    request_id: str | None = None
     tokens_generated: int = 0
     latency_ms: float = 0.0
     finish_reason: str = "stop"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "text": self.text,
@@ -173,7 +173,7 @@ class MetricsCollector:
         self.total_tokens = 0
         self.error_count = 0
         self._start_time = time.time()
-        self._latencies: List[float] = []
+        self._latencies: list[float] = []
 
     def record_request(
         self,
@@ -194,7 +194,7 @@ class MetricsCollector:
         if len(self._latencies) > 1000:
             self._latencies = self._latencies[-1000:]
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         """Get current metrics."""
         uptime = time.time() - self._start_time
         avg_latency = (
@@ -385,7 +385,6 @@ def create_medgemma_deployment(config: RayServeConfig):
         Ray Serve deployment application
     """
     try:
-        import ray
         from ray import serve
     except ImportError as e:
         raise ImportError("ray[serve] required for deployment") from e
@@ -438,7 +437,7 @@ def create_medgemma_deployment(config: RayServeConfig):
             """Health check endpoint."""
             return self._healthy and self.model_wrapper._initialized
 
-        async def __call__(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        async def __call__(self, request: dict[str, Any]) -> dict[str, Any]:
             """Handle incoming request."""
             try:
                 # Parse request
@@ -477,7 +476,7 @@ def create_medgemma_deployment(config: RayServeConfig):
                     "request_id": request.get("request_id"),
                 }
 
-        def get_metrics(self) -> Dict[str, Any]:
+        def get_metrics(self) -> dict[str, Any]:
             """Get deployment metrics."""
             return self.metrics.get_metrics()
 
@@ -488,7 +487,7 @@ def create_medgemma_deployment(config: RayServeConfig):
     return MedGemmaDeployment
 
 
-def create_router_deployment(configs: Dict[str, RayServeConfig]):
+def create_router_deployment(configs: dict[str, RayServeConfig]):
     """
     Create a router deployment that routes to different model variants.
 
@@ -499,7 +498,6 @@ def create_router_deployment(configs: Dict[str, RayServeConfig]):
         Router deployment application
     """
     try:
-        import ray
         from ray import serve
     except ImportError as e:
         raise ImportError("ray[serve] required for deployment") from e
@@ -512,12 +510,12 @@ def create_router_deployment(configs: Dict[str, RayServeConfig]):
     class MedGemmaRouter:
         """Routes requests to appropriate model deployment."""
 
-        def __init__(self, deployments: Dict[str, Any]):
+        def __init__(self, deployments: dict[str, Any]):
             self.deployments = deployments
             self.default_variant = "4b"
             logger.info(f"Router initialized with variants: {list(deployments.keys())}")
 
-        async def __call__(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        async def __call__(self, request: dict[str, Any]) -> dict[str, Any]:
             """Route request to appropriate deployment."""
             # Determine variant from request or default
             variant = request.get("model_variant", self.default_variant)
@@ -532,7 +530,7 @@ def create_router_deployment(configs: Dict[str, RayServeConfig]):
             deployment = self.deployments[variant]
             return await deployment.remote(request)
 
-        async def health(self) -> Dict[str, Any]:
+        async def health(self) -> dict[str, Any]:
             """Check health of all deployments."""
             health_status = {}
             for variant, deployment in self.deployments.items():
@@ -557,9 +555,9 @@ def create_router_deployment(configs: Dict[str, RayServeConfig]):
 class RayServeDeploymentManager:
     """Manages Ray Serve deployments for MedGemma."""
 
-    def __init__(self, config: Optional[RayServeConfig] = None):
+    def __init__(self, config: RayServeConfig | None = None):
         self.config = config or RayServeConfig()
-        self._deployments: Dict[str, Any] = {}
+        self._deployments: dict[str, Any] = {}
         self._handle = None
         self._initialized = False
 
@@ -600,7 +598,7 @@ class RayServeDeploymentManager:
 
     def deploy_multi_model(
         self,
-        configs: Optional[Dict[str, RayServeConfig]] = None,
+        configs: dict[str, RayServeConfig] | None = None,
     ) -> Any:
         """Deploy multiple model variants with routing."""
         from ray import serve
@@ -637,7 +635,7 @@ class RayServeDeploymentManager:
         max_tokens: int = 512,
         temperature: float = 0.1,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate text using deployed model."""
         if not self._initialized or self._handle is None:
             raise RuntimeError("Deployment not initialized")
@@ -663,7 +661,7 @@ class RayServeDeploymentManager:
         except Exception as e:
             logger.warning(f"Error during shutdown: {e}")
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get deployment status."""
         try:
             from ray import serve

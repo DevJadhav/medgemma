@@ -9,10 +9,10 @@ Formula: soft_cap * tanh(logits / soft_cap)
 This bounds logits to [-soft_cap, soft_cap] while maintaining differentiability.
 """
 
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Optional
 
 
 class LogitSoftCap(nn.Module):
