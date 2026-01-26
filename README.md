@@ -6,7 +6,7 @@
   </p>
   <p align="center">
     <a href="https://www.kaggle.com/competitions/medgemma-impact-challenge"><img src="https://img.shields.io/badge/Kaggle-MedGemma%20Challenge-20BEFF?style=flat&logo=kaggle" alt="Kaggle"></a>
-    <img src="https://img.shields.io/badge/Tests-340%20passing-brightgreen" alt="Tests">
+    <img src="https://img.shields.io/badge/Tests-1900%2B%20passing-brightgreen" alt="Tests">
     <img src="https://img.shields.io/badge/Python-3.10%2B-blue" alt="Python">
     <img src="https://img.shields.io/badge/License-MIT%202.0-green" alt="License">
   </p>
@@ -279,14 +279,47 @@ REDIS_PASSWORD=your_redis_password
 JWT_SECRET=your_jwt_secret
 PHI_ENCRYPTION_KEY=your_fernet_key
 
+# Model Configuration (defaults to medgemma-27b)
+MEDGEMMA_MODEL_NAME=medgemma-27b  # Options: medgemma-4b, medgemma-27b
+
 # Modal (optional - for cloud GPU)
 MODAL_TOKEN_ID=your_modal_token_id
 MODAL_TOKEN_SECRET=your_modal_token_secret
+
+# Configuration Overrides (optional)
+MEDAI_ENVIRONMENT=production     # development, staging, production
+MEDAI_CONFIDENCE_HIGH=0.90       # High confidence threshold
+MEDAI_INFERENCE_TIMEOUT=90       # Inference timeout in seconds
+MEDAI_LOG_LEVEL=INFO             # DEBUG, INFO, WARNING, ERROR
+
+# SIEM Integration (optional)
+SPLUNK_HEC_URL=https://your-splunk:8088/services/collector
+SPLUNK_HEC_TOKEN=your-hec-token
+ELASTICSEARCH_HOSTS=http://localhost:9200
+AWS_REGION=us-east-1             # For CloudWatch
 
 # Optional
 MINIO_SECRET_KEY=your_minio_secret
 GRAFANA_PASSWORD=admin
 ```
+
+### Configuration Management
+
+MedAI Compass uses a centralized configuration system. Values can be set via:
+1. Environment variables (highest priority)
+2. Configuration file (`config/medai_config.yaml`)
+3. Default values
+
+```python
+from medai_compass.config import get_config, get_model_name
+
+config = get_config()
+print(f"Model: {get_model_name()}")  # medgemma-27b
+print(f"Environment: {config.environment}")
+print(f"Confidence threshold: {config.confidence.high_confidence}")
+```
+
+See `config/medai_config.yaml` for all configurable options.
 
 ### Modal Setup (Optional Cloud GPU)
 
@@ -316,12 +349,14 @@ result = await client.generate("Analyze this medical image...")
 ## 🧪 Testing
 
 ```bash
-# All tests (340 passing)
+# All tests (1,900+ passing)
 uv run pytest tests/ -v
 
-# Specific module
-uv run pytest tests/test_api.py -v
-uv run pytest tests/test_diagnostic_agent.py -v
+# Specific modules
+uv run pytest tests/test_api.py -v                    # API tests (98 tests)
+uv run pytest tests/test_guardrails_phi.py -v         # PHI detection (41 tests)
+uv run pytest tests/test_penetration.py -v            # Security tests (57 tests)
+uv run pytest tests/test_training_strategy_selector.py -v  # Training tests (28 tests)
 
 # With coverage
 uv run pytest tests/ --cov=medai_compass --cov-report=html
@@ -330,18 +365,26 @@ uv run pytest tests/ --cov=medai_compass --cov-report=html
 locust -f tests/load/locustfile.py --host=http://localhost:8000
 ```
 
-**Test Summary: 340 tests passing** ✅
+**Test Summary: 1,900+ tests passing** ✅
+
+### Test Categories
+- **Unit Tests**: Core functionality, models, utilities
+- **Integration Tests**: API endpoints, agent orchestration
+- **Security Tests**: Penetration testing, PHI detection, jailbreak prevention
+- **Training Tests**: Strategy selection, distributed training, optimizations
+- **E2E Tests**: Complete workflow testing
 
 ---
 
 ## 🔒 HIPAA Compliance
 
-- **PHI Detection**: SSN, MRN, names, DOB, phone, email detection and masking
-- **PHI Encryption**: AES-256 at rest, TLS 1.3 in transit
-- **Audit Logging**: Tamper-evident with integrity hashes, 6-year retention
+- **PHI Detection**: 30+ patterns including SSN, MRN, names, DOB, phone, email, passport, driver's license, Medicare/Medicaid IDs, and context-aware detection
+- **PHI Encryption**: AES-256-GCM at rest with key rotation, TLS 1.3 in transit
+- **Audit Logging**: SIEM integration (Splunk, ELK, CloudWatch) with tamper-evident hash chains, 6-year retention enforcement
 - **Access Control**: JWT + role-based with session management (Redis)
 - **Data Isolation**: Row-level security in PostgreSQL
-- **Guardrails**: Jailbreak detection, hallucination prevention, uncertainty quantification
+- **Guardrails**: Jailbreak detection (8 categories + encoding bypass + fuzzy matching), hallucination prevention, uncertainty quantification
+- **Key Management**: Automatic key rotation, secure storage, audit logging
 
 See [HIPAA Compliance Documentation](docs/HIPAA_COMPLIANCE.md) for full details.
 
@@ -421,12 +464,28 @@ Apache 2.0 License. See [LICENSE](LICENSE) for details.
 | HIPAA Compliance | ✅ Complete |
 | Load Testing | ✅ Complete |
 | Documentation | ✅ Complete |
+| Distributed Training | ✅ Complete |
+| Security Hardening | ✅ Complete |
+| Configuration Management | ✅ Complete |
+| Audit Logging & SIEM | ✅ Complete |
 
-### New in Latest Release
+### New in Latest Release (v2.0)
 
-- **Modal GPU Support**: Cloud H100 GPU inference with auto-fallback
-- **GPU Detection**: Automatic CUDA/MPS/Modal backend selection
-- **Conversation Persistence**: Redis + PostgreSQL for multi-instance deployment
-- **NeMo Guardrails**: Optional integration with custom fallback
-- **MedGemma 27B**: Real LLM-powered documentation generation
-- **Triton Model Repository**: Production model serving configuration
+**Security & Compliance**:
+- **Enhanced PHI Detection**: 30+ patterns with context-aware detection
+- **Jailbreak Prevention**: Base64/ROT13 decoding, l33tspeak detection, fuzzy matching
+- **SIEM Integration**: Splunk, Elasticsearch, CloudWatch audit log backends
+- **Tamper-Evident Audit**: Hash chain verification for audit log integrity
+- **Key Rotation**: Automatic encryption key rotation with audit logging
+
+**Configuration & Infrastructure**:
+- **Centralized Configuration**: YAML/JSON config files + environment variables
+- **Model Selection**: Environment variable (`MEDGEMMA_MODEL_NAME`) for UI configurability
+- **Thread-Safe Metrics**: Fixed race conditions in concurrent request tracking
+- **Intent Classification**: Semantic understanding with synonym expansion
+
+**Training & Inference**:
+- **Distributed Training**: DeepSpeed ZeRO, Megatron-LM, FSDP2, 5D Parallelism
+- **Kernel Optimizations**: Fused cross-entropy, RoPE, SwiGLU (4x memory reduction)
+- **Quality Gates**: Automated benchmarking for training and inference
+- **MedGemma 27B**: Default model with H100 optimization

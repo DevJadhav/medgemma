@@ -5696,6 +5696,8 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "accelerate" },
+    { name = "aiohttp" },
+    { name = "aiohttp-cors" },
     { name = "asyncpg" },
     { name = "bitsandbytes" },
     { name = "celery", extra = ["redis"] },
@@ -5779,6 +5781,7 @@ all = [
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "pytest-mock" },
+    { name = "pytest-timeout" },
     { name = "ray", extra = ["data", "serve", "train", "tune"] },
     { name = "rouge-score" },
     { name = "ruff" },
@@ -5790,6 +5793,7 @@ all = [
     { name = "tensorboard" },
     { name = "tensorboardx" },
     { name = "tqdm" },
+    { name = "triton", marker = "sys_platform == 'linux'" },
     { name = "tritonclient", marker = "sys_platform == 'darwin' or sys_platform == 'linux' or sys_platform == 'win32'" },
     { name = "tritonclient", extra = ["all"], marker = "sys_platform == 'linux'" },
     { name = "tritonclient", extra = ["grpc", "http"], marker = "sys_platform == 'darwin' or sys_platform == 'win32'" },
@@ -5817,6 +5821,7 @@ all-cuda = [
     { name = "jupyter" },
     { name = "kaleido" },
     { name = "locust" },
+    { name = "megatron-core", marker = "sys_platform == 'linux'" },
     { name = "mkdocs" },
     { name = "mkdocs-material" },
     { name = "mlflow" },
@@ -5840,6 +5845,7 @@ all-cuda = [
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "pytest-mock" },
+    { name = "pytest-timeout" },
     { name = "ray", extra = ["data", "serve", "train", "tune"] },
     { name = "rouge-score" },
     { name = "ruff" },
@@ -5851,6 +5857,7 @@ all-cuda = [
     { name = "tensorboard" },
     { name = "tensorboardx" },
     { name = "tqdm" },
+    { name = "triton", marker = "sys_platform == 'linux'" },
     { name = "tritonclient", marker = "sys_platform == 'darwin' or sys_platform == 'linux' or sys_platform == 'win32'" },
     { name = "tritonclient", extra = ["all"], marker = "sys_platform == 'linux'" },
     { name = "tritonclient", extra = ["grpc", "http"], marker = "sys_platform == 'darwin' or sys_platform == 'win32'" },
@@ -5867,7 +5874,14 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "pytest-mock" },
+    { name = "pytest-timeout" },
     { name = "ruff" },
+]
+distributed = [
+    { name = "deepspeed", marker = "sys_platform == 'linux'" },
+    { name = "flash-attn", marker = "sys_platform == 'linux'" },
+    { name = "megatron-core", marker = "sys_platform == 'linux'" },
+    { name = "triton", marker = "sys_platform == 'linux'" },
 ]
 evaluation = [
     { name = "bert-score" },
@@ -5895,6 +5909,71 @@ monitoring = [
     { name = "opentelemetry-instrumentation-sqlalchemy" },
     { name = "opentelemetry-sdk" },
     { name = "slack-sdk" },
+]
+production = [
+    { name = "aiohttp" },
+    { name = "alibi-detect" },
+    { name = "bert-score" },
+    { name = "ctgan" },
+    { name = "datasets" },
+    { name = "deepspeed", marker = "sys_platform == 'linux'" },
+    { name = "diffusers" },
+    { name = "dvc" },
+    { name = "dvc-s3" },
+    { name = "evaluate" },
+    { name = "faker" },
+    { name = "flash-attn", marker = "sys_platform == 'linux'" },
+    { name = "great-expectations", version = "0.18.22", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
+    { name = "great-expectations", version = "1.11.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
+    { name = "hiplot" },
+    { name = "hypothesis" },
+    { name = "ipywidgets" },
+    { name = "jsonlines" },
+    { name = "jupyter" },
+    { name = "kaleido" },
+    { name = "locust" },
+    { name = "megatron-core", marker = "sys_platform == 'linux'" },
+    { name = "mkdocs" },
+    { name = "mkdocs-material" },
+    { name = "mlflow" },
+    { name = "modal" },
+    { name = "mypy" },
+    { name = "nemoguardrails" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-exporter-otlp" },
+    { name = "opentelemetry-instrumentation-fastapi" },
+    { name = "opentelemetry-instrumentation-httpx" },
+    { name = "opentelemetry-instrumentation-redis" },
+    { name = "opentelemetry-instrumentation-sqlalchemy" },
+    { name = "opentelemetry-sdk" },
+    { name = "optuna" },
+    { name = "optuna-integration" },
+    { name = "pandera" },
+    { name = "plotly" },
+    { name = "pre-commit" },
+    { name = "prometheus-client" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "pytest-mock" },
+    { name = "pytest-timeout" },
+    { name = "ray", extra = ["data", "serve", "train", "tune"] },
+    { name = "rouge-score" },
+    { name = "ruff" },
+    { name = "safetensors" },
+    { name = "scikit-learn", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scikit-learn", version = "1.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "sdv" },
+    { name = "slack-sdk" },
+    { name = "tensorboard" },
+    { name = "tensorboardx" },
+    { name = "tqdm" },
+    { name = "triton", marker = "sys_platform == 'linux'" },
+    { name = "tritonclient", marker = "sys_platform == 'darwin' or sys_platform == 'linux' or sys_platform == 'win32'" },
+    { name = "tritonclient", extra = ["all"], marker = "sys_platform == 'linux'" },
+    { name = "tritonclient", extra = ["grpc", "http"], marker = "sys_platform == 'darwin' or sys_platform == 'win32'" },
+    { name = "trl" },
+    { name = "vllm", marker = "sys_platform == 'linux'" },
 ]
 serving = [
     { name = "prometheus-client" },
@@ -5931,6 +6010,7 @@ training = [
     { name = "tensorboard" },
     { name = "tensorboardx" },
     { name = "tqdm" },
+    { name = "triton", marker = "sys_platform == 'linux'" },
     { name = "trl" },
 ]
 vllm = [
@@ -5940,7 +6020,9 @@ vllm = [
 [package.metadata]
 requires-dist = [
     { name = "accelerate", specifier = ">=0.28.0" },
+    { name = "aiohttp", specifier = ">=3.13.3" },
     { name = "aiohttp", marker = "extra == 'monitoring'", specifier = ">=3.9.0" },
+    { name = "aiohttp-cors", specifier = ">=0.8.1" },
     { name = "alibi-detect", marker = "extra == 'monitoring'", specifier = ">=0.11.0" },
     { name = "asyncpg", specifier = ">=0.29.0" },
     { name = "bert-score", marker = "extra == 'evaluation'", specifier = ">=0.3.13" },
@@ -5951,7 +6033,8 @@ requires-dist = [
     { name = "ctgan", marker = "extra == 'training'", specifier = ">=0.9.0" },
     { name = "datasets", marker = "extra == 'evaluation'", specifier = ">=2.17.0" },
     { name = "datasets", marker = "extra == 'training'", specifier = ">=2.17.0" },
-    { name = "deepspeed", marker = "sys_platform == 'linux' and extra == 'training'", specifier = ">=0.13.0" },
+    { name = "deepspeed", marker = "sys_platform == 'linux' and extra == 'distributed'", specifier = ">=0.14.0" },
+    { name = "deepspeed", marker = "sys_platform == 'linux' and extra == 'training'", specifier = ">=0.14.0" },
     { name = "diffusers", marker = "extra == 'training'", specifier = ">=0.25.0" },
     { name = "dvc", marker = "extra == 'training'", specifier = ">=3.40.0" },
     { name = "dvc-s3", marker = "extra == 'training'", specifier = ">=3.0.0" },
@@ -5960,6 +6043,7 @@ requires-dist = [
     { name = "faker", marker = "extra == 'training'", specifier = ">=20.0.0" },
     { name = "fastapi", specifier = ">=0.110.0" },
     { name = "fhirclient", specifier = ">=4.1.0" },
+    { name = "flash-attn", marker = "sys_platform == 'linux' and extra == 'distributed'", specifier = ">=2.5.0" },
     { name = "flash-attn", marker = "sys_platform == 'linux' and extra == 'training'", specifier = ">=2.5.0" },
     { name = "great-expectations", marker = "extra == 'training'", specifier = ">=0.18.0" },
     { name = "hiplot", marker = "extra == 'training'", specifier = ">=0.1.33" },
@@ -5973,8 +6057,10 @@ requires-dist = [
     { name = "langchain", specifier = ">=0.1.0" },
     { name = "langgraph", specifier = ">=0.2.0" },
     { name = "locust", marker = "extra == 'monitoring'", specifier = ">=2.24.0" },
-    { name = "medai-compass", extras = ["all", "vllm"], marker = "extra == 'all-cuda'" },
+    { name = "medai-compass", extras = ["all", "vllm", "distributed"], marker = "extra == 'all-cuda'" },
+    { name = "medai-compass", extras = ["all-cuda"], marker = "extra == 'production'" },
     { name = "medai-compass", extras = ["dev", "evaluation", "serving", "monitoring", "modal", "guardrails", "training"], marker = "extra == 'all'" },
+    { name = "megatron-core", marker = "sys_platform == 'linux' and extra == 'distributed'", specifier = ">=0.5.0" },
     { name = "minio", specifier = ">=7.2.0" },
     { name = "mkdocs", marker = "extra == 'dev'", specifier = ">=1.5.0" },
     { name = "mkdocs-material", marker = "extra == 'dev'", specifier = ">=9.5.0" },
@@ -6011,6 +6097,7 @@ requires-dist = [
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1.0" },
     { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.12.0" },
+    { name = "pytest-timeout", marker = "extra == 'dev'", specifier = ">=2.3.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pyyaml", specifier = ">=6.0.0" },
     { name = "ray", extras = ["serve"], marker = "extra == 'serving'", specifier = ">=2.10.0" },
@@ -6029,6 +6116,8 @@ requires-dist = [
     { name = "torch", specifier = ">=2.0.0" },
     { name = "tqdm", marker = "extra == 'training'", specifier = ">=4.66.0" },
     { name = "transformers", specifier = ">=4.40.0" },
+    { name = "triton", marker = "sys_platform == 'linux' and extra == 'distributed'", specifier = ">=2.2.0" },
+    { name = "triton", marker = "sys_platform == 'linux' and extra == 'training'", specifier = ">=2.2.0" },
     { name = "tritonclient", extras = ["all"], marker = "sys_platform == 'linux' and extra == 'serving'", specifier = ">=2.42.0" },
     { name = "tritonclient", extras = ["http", "grpc"], marker = "sys_platform == 'darwin' and extra == 'serving'", specifier = ">=2.42.0" },
     { name = "tritonclient", extras = ["http", "grpc"], marker = "sys_platform == 'win32' and extra == 'serving'", specifier = ">=2.42.0" },
@@ -6036,7 +6125,28 @@ requires-dist = [
     { name = "uvicorn", specifier = ">=0.27.0" },
     { name = "vllm", marker = "sys_platform == 'linux' and extra == 'vllm'", specifier = ">=0.3.0" },
 ]
-provides-extras = ["dev", "evaluation", "serving", "monitoring", "vllm", "modal", "guardrails", "training", "all", "all-cuda"]
+provides-extras = ["dev", "evaluation", "serving", "monitoring", "vllm", "modal", "guardrails", "training", "distributed", "all", "all-cuda", "production"]
+
+[[package]]
+name = "megatron-core"
+version = "0.15.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy", marker = "sys_platform == 'linux'" },
+    { name = "packaging", marker = "sys_platform == 'linux'" },
+    { name = "torch", marker = "sys_platform == 'linux'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0a/e5/6698af70623ac6a4d6403f34520550ac4d9743913206f79c96c3497b87fc/megatron_core-0.15.2.tar.gz", hash = "sha256:8397898a0ade70c3ba96fc21335a7e022587bc139b91bf625ef76cd0e66d7b4f", size = 878187, upload-time = "2026-01-08T15:38:47.965Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e2/ca/586dba0055205be5bc0a25a24c0b1965d135a23982466cfb81b209fbfcf5/megatron_core-0.15.2-cp310-cp310-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:ff5529d2fe09019da238eae1a8a6b98593c0399c62088deaedba537548f3c2c4", size = 2207132, upload-time = "2026-01-08T15:38:33.65Z" },
+    { url = "https://files.pythonhosted.org/packages/49/11/4ee7b7c777b2b25365d2e7639196a3304b945de0c415104b685389812b4f/megatron_core-0.15.2-cp310-cp310-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:59514286168835adb8fa40537cf5d186be87c320efbde5d9da04be9069360614", size = 2238356, upload-time = "2026-01-08T15:38:35.742Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/65/d994d36aeecbd236e24d8860c3347399c714c913c733c2717824ff10d1c8/megatron_core-0.15.2-cp311-cp311-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:015375a4632432ba8ff63a12f6ed89df3f525290b7192f3cde70d79c93ea8ecc", size = 2218355, upload-time = "2026-01-08T15:38:37.74Z" },
+    { url = "https://files.pythonhosted.org/packages/3f/28/a6119ce2211268e2c9c1bbf31cfb560c4e03932bed3bcb4f03bdde329b54/megatron_core-0.15.2-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:5220f1a9c19695c2b0c614f83e4575b2032d12ea7276f1e38bde4a2d90ee6ed3", size = 2250269, upload-time = "2026-01-08T15:38:40.207Z" },
+    { url = "https://files.pythonhosted.org/packages/32/61/96ae649e1f22e978db34006161b84e58b3dbc80587da096981f045ffa3ec/megatron_core-0.15.2-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:744fb4b788791342c53927df584d35d8cfb14330d3bdde95fc1555f6406bc50a", size = 2238920, upload-time = "2026-01-08T15:38:41.475Z" },
+    { url = "https://files.pythonhosted.org/packages/10/f0/42adab418f2850bcb56e7d9c03398cb85df98ff1ac996b225958207a5775/megatron_core-0.15.2-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:2402411a4ec077b05fcc703d948d6527d29f11200e9ec0b9c505b5576e24f7f2", size = 2263262, upload-time = "2026-01-08T15:38:43.577Z" },
+    { url = "https://files.pythonhosted.org/packages/b9/94/8235ad4525e3941cf02b40febb81ae3c75c1212628ae7a12c095a82e75ca/megatron_core-0.15.2-cp313-cp313-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:35c6b5fc4b3e8d332c33143d1a85793451f2845cdb766b8b62fefffef6d3a327", size = 2238145, upload-time = "2026-01-08T15:38:44.94Z" },
+    { url = "https://files.pythonhosted.org/packages/90/37/0afde6b77c43d21b163538d50629891ee67d31ba48a07e408d612f89a29c/megatron_core-0.15.2-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d512b06debe22bbb68ee0e4d0cdd166c1b1fc6692218c34291e39cd1d49fd6ac", size = 2263122, upload-time = "2026-01-08T15:38:45.971Z" },
+]
 
 [[package]]
 name = "mergedeep"
@@ -11462,7 +11572,7 @@ name = "triton"
 version = "2.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "filelock", marker = "python_full_version < '3.12' and platform_machine != 'aarch64' and sys_platform == 'linux'" },
+    { name = "filelock", marker = "sys_platform == 'linux'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/db/ee/8d50d44ed5b63677bb387f4ee67a7dbaaded0189b320ffe82685a6827728/triton-2.3.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5ce4b8ff70c48e47274c66f269cce8861cf1dc347ceeb7a67414ca151b1822d8", size = 168055246, upload-time = "2024-04-05T02:47:42.984Z" },

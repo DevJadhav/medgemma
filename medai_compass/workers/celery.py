@@ -29,6 +29,7 @@ app = Celery(
     include=[
         "medai_compass.workers.ingestion_tasks",
         "medai_compass.workers.download_tasks",
+        "medai_compass.workers.inference_tasks",
     ],
 )
 
@@ -45,6 +46,7 @@ app.conf.update(
     task_routes={
         "medai_compass.workers.ingestion_tasks.*": {"queue": "ingestion"},
         "medai_compass.workers.download_tasks.*": {"queue": "downloads"},
+        "medai_compass.workers.inference_tasks.*": {"queue": "inference"},
     },
     
     # Rate limiting

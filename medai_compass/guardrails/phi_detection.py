@@ -46,9 +46,21 @@ EXTENDED_PHI_PATTERNS: dict[str, re.Pattern] = {
         re.IGNORECASE
     ),
 
+    # Passport numbers (US and international formats)
+    "passport": re.compile(
+        r'\b(?:Passport[#:\s]*)?([A-Z]{1,2}\d{6,9})\b',
+        re.IGNORECASE
+    ),
+
     # Medicare Beneficiary Identifier (MBI format: 1AA1-AA1-AA11)
     "medicare_id": re.compile(
         r'\b(\d[A-Z]{2}\d-[A-Z]{2}\d-[A-Z]{2}\d{2})\b',
+        re.IGNORECASE
+    ),
+
+    # Medicaid ID (various state formats)
+    "medicaid_id": re.compile(
+        r'\b(?:Medicaid[#:\s]*)([A-Z]{0,3}\d{8,12})\b',
         re.IGNORECASE
     ),
 
@@ -71,6 +83,86 @@ EXTENDED_PHI_PATTERNS: dict[str, re.Pattern] = {
     # Bank account numbers
     "bank_account": re.compile(
         r'\b(?:Bank\s*Account|Routing)[#:\s]*(\d{8,17})\b',
+        re.IGNORECASE
+    ),
+
+    # Health plan beneficiary numbers
+    "health_plan_id": re.compile(
+        r'\b(?:Health\s*Plan|Insurance|Member)[#:\s]*([A-Z]{2,4}\d{8,12})\b',
+        re.IGNORECASE
+    ),
+
+    # Vehicle identification numbers (device identifiers per HIPAA)
+    "vin": re.compile(
+        r'\b[A-HJ-NPR-Z0-9]{17}\b'
+    ),
+
+    # Biometric identifiers (fingerprint, voiceprint references)
+    "biometric_ref": re.compile(
+        r'\b(?:fingerprint|voiceprint|retina|iris)[#:\s]*([A-Z0-9]{8,32})\b',
+        re.IGNORECASE
+    ),
+
+    # Full face photographs or comparable images (URLs)
+    "photo_url": re.compile(
+        r'\b(?:photo|image|picture)[#:\s]*(https?://[^\s]+\.(?:jpg|jpeg|png|gif))\b',
+        re.IGNORECASE
+    ),
+}
+
+# Context-aware PHI patterns (detect PHI in natural language context)
+CONTEXT_AWARE_PATTERNS: dict[str, re.Pattern] = {
+    # "Patient John Smith admitted on 1/15"
+    "patient_admission": re.compile(
+        r'\b(?:patient|pt\.?)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:admitted|discharged|seen|treated)\s+(?:on\s+)?(\d{1,2}/\d{1,2}(?:/\d{2,4})?)',
+        re.IGNORECASE
+    ),
+
+    # "John Doe, DOB 01/15/1980"
+    "name_with_dob": re.compile(
+        r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2}),?\s+(?:DOB|date\s+of\s+birth|born)[:\s]+(\d{1,2}/\d{1,2}/\d{2,4})',
+        re.IGNORECASE
+    ),
+
+    # "Room 302, bed A: Smith, John"
+    "room_patient": re.compile(
+        r'(?:room|bed|unit)\s*[#:\s]*\d+[A-Za-z]?[,:\s]+([A-Z][a-z]+,?\s+[A-Z][a-z]+)',
+        re.IGNORECASE
+    ),
+
+    # "Dr. Smith's patient [Name]"
+    "provider_patient": re.compile(
+        r"(?:Dr\.?|Doctor)\s+[A-Z][a-z]+(?:'s)?\s+patient[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)",
+        re.IGNORECASE
+    ),
+
+    # "Contact: (555) 123-4567 for John"
+    "contact_for_patient": re.compile(
+        r'(?:contact|call|phone|reach)[:\s]+(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})\s+(?:for|regarding)\s+([A-Z][a-z]+)',
+        re.IGNORECASE
+    ),
+
+    # "John's SSN is 123-45-6789"
+    "possessive_identifier": re.compile(
+        r"([A-Z][a-z]+)(?:'s|s')?\s+(?:SSN|social|MRN|ID|DOB)[:\s]+",
+        re.IGNORECASE
+    ),
+
+    # Date ranges that might indicate treatment periods
+    "treatment_dates": re.compile(
+        r'(?:treated|hospitalized|admitted)\s+(?:from\s+)?(\d{1,2}/\d{1,2}/\d{2,4})\s+(?:to|through|-)\s+(\d{1,2}/\d{1,2}/\d{2,4})',
+        re.IGNORECASE
+    ),
+
+    # Age with context
+    "age_context": re.compile(
+        r'(\d{1,3})[-\s]?(?:year[-\s]?old|y/?o)\s+(?:male|female|patient|man|woman)',
+        re.IGNORECASE
+    ),
+
+    # Geographic subdivisions smaller than state
+    "geographic": re.compile(
+        r'\b(?:zip|zip\s*code|postal)[:\s]*(\d{5}(?:-\d{4})?)\b',
         re.IGNORECASE
     ),
 }
@@ -130,12 +222,27 @@ REDACTION_TOKENS: dict[str, str] = {
     "address": "[ADDRESS_REDACTED]",
     "clinical_trial": "[CLINICAL_TRIAL_REDACTED]",
     "drivers_license": "[DL_REDACTED]",
+    "passport": "[PASSPORT_REDACTED]",
     "medicare_id": "[MEDICARE_REDACTED]",
+    "medicaid_id": "[MEDICAID_REDACTED]",
     "account_number": "[ACCOUNT_REDACTED]",
     "ip_address": "[IP_REDACTED]",
     "credit_card": "[CC_REDACTED]",
     "bank_account": "[BANK_REDACTED]",
+    "health_plan_id": "[HEALTH_PLAN_REDACTED]",
+    "vin": "[VIN_REDACTED]",
+    "biometric_ref": "[BIOMETRIC_REDACTED]",
+    "photo_url": "[PHOTO_URL_REDACTED]",
     "name": "[NAME_REDACTED]",
+    "patient_admission": "[PATIENT_ADMISSION_REDACTED]",
+    "name_with_dob": "[NAME_DOB_REDACTED]",
+    "room_patient": "[ROOM_PATIENT_REDACTED]",
+    "provider_patient": "[PROVIDER_PATIENT_REDACTED]",
+    "contact_for_patient": "[CONTACT_PATIENT_REDACTED]",
+    "possessive_identifier": "[IDENTIFIER_REDACTED]",
+    "treatment_dates": "[TREATMENT_DATES_REDACTED]",
+    "age_context": "[AGE_REDACTED]",
+    "geographic": "[ZIP_REDACTED]",
 }
 
 
@@ -214,6 +321,48 @@ def detect_potential_names(text: str) -> list[str]:
                 potential_names.append(name)
 
     return list(set(potential_names))  # Deduplicate
+
+
+def detect_context_aware_phi(text: str) -> dict[str, list[tuple]]:
+    """
+    Detect PHI using context-aware patterns.
+
+    These patterns identify PHI that appears in natural language context,
+    such as "Patient John admitted on 1/15" or "John's SSN is...".
+
+    Args:
+        text: Input text to scan
+
+    Returns:
+        Dictionary mapping context type to list of detected instances (as tuples)
+    """
+    detected: dict[str, list[tuple]] = {}
+
+    for context_type, pattern in CONTEXT_AWARE_PATTERNS.items():
+        matches = pattern.findall(text)
+        if matches:
+            detected[context_type] = matches
+
+    return detected
+
+
+def mask_context_aware_phi(text: str) -> str:
+    """
+    Mask context-aware PHI patterns in text.
+
+    Args:
+        text: Input text containing potential PHI
+
+    Returns:
+        Masked text with context-aware PHI redacted
+    """
+    masked_text = text
+
+    for context_type, pattern in CONTEXT_AWARE_PATTERNS.items():
+        token = REDACTION_TOKENS.get(context_type, f"[{context_type.upper()}_REDACTED]")
+        masked_text = pattern.sub(token, masked_text)
+
+    return masked_text
 
 
 def mask_phi(
@@ -312,7 +461,8 @@ class PHIDetector:
         self,
         additional_patterns: dict[str, str] | None = None,
         use_ner: bool = False,
-        include_extended: bool = True
+        include_extended: bool = True,
+        include_context_aware: bool = True
     ):
         """
         Initialize PHI detector.
@@ -321,15 +471,23 @@ class PHIDetector:
             additional_patterns: Additional regex patterns to detect
             use_ner: Whether to use NER-based name detection
             include_extended: Whether to include extended PHI patterns
+            include_context_aware: Whether to include context-aware patterns
         """
         self.patterns = dict(PHI_PATTERNS)
         self.use_ner = use_ner
         self.include_extended = include_extended
+        self.include_context_aware = include_context_aware
         self._statistics = ScanStatistics()
 
         # Add extended patterns if requested
         if include_extended:
             self.patterns.update(EXTENDED_PHI_PATTERNS)
+
+        # Add context-aware patterns if requested
+        if include_context_aware:
+            self.context_patterns = dict(CONTEXT_AWARE_PATTERNS)
+        else:
+            self.context_patterns = {}
 
         # Add custom patterns
         if additional_patterns:
@@ -337,8 +495,10 @@ class PHIDetector:
                 self.patterns[name] = re.compile(pattern)
                 REDACTION_TOKENS[name] = f"[{name.upper()}_REDACTED]"
 
+        total_patterns = len(self.patterns) + len(self.context_patterns)
         logger.info(
-            f"PHI Detector initialized with {len(self.patterns)} patterns, "
+            f"PHI Detector initialized with {total_patterns} patterns "
+            f"({len(self.patterns)} standard, {len(self.context_patterns)} context-aware), "
             f"NER={'enabled' if use_ner else 'disabled'}"
         )
 
@@ -356,8 +516,9 @@ class PHIDetector:
         self._statistics.last_scan_time = datetime.now()
 
         detected: dict[str, list[str]] = {}
+        context_detected: dict[str, list[tuple]] = {}
 
-        # Scan with all patterns
+        # Scan with all standard patterns
         for phi_type, pattern in self.patterns.items():
             matches = pattern.findall(text)
             if matches:
@@ -371,6 +532,18 @@ class PHIDetector:
                     self._statistics.phi_by_type.get(phi_type, 0) + len(matches)
                 )
 
+        # Scan with context-aware patterns
+        if self.include_context_aware:
+            for context_type, pattern in self.context_patterns.items():
+                matches = pattern.findall(text)
+                if matches:
+                    context_detected[context_type] = matches
+                    # Flatten tuples for counting
+                    flat_count = len(matches)
+                    self._statistics.phi_by_type[context_type] = (
+                        self._statistics.phi_by_type.get(context_type, 0) + flat_count
+                    )
+
         # Detect potential names if NER is enabled
         potential_names: list[str] = []
         has_potential_names = False
@@ -380,23 +553,30 @@ class PHIDetector:
             if potential_names:
                 detected["name"] = potential_names
 
-        total_instances = sum(len(v) for v in detected.values())
+        total_instances = sum(len(v) for v in detected.values()) + sum(len(v) for v in context_detected.values())
 
         if total_instances > 0:
             self._statistics.scans_with_phi += 1
 
         return {
             "detected": detected,
+            "context_detected": context_detected,
             "total_instances": total_instances,
             "is_safe": total_instances == 0 and not has_potential_names,
-            "risk_level": self._assess_risk(detected),
+            "risk_level": self._assess_risk(detected, context_detected),
             "has_potential_names": has_potential_names,
             "potential_names": potential_names,
         }
 
-    def _assess_risk(self, detected: dict[str, list[str]]) -> str:
+    def _assess_risk(
+        self,
+        detected: dict[str, list[str]],
+        context_detected: dict[str, list[tuple]] | None = None
+    ) -> str:
         """Assess risk level based on detected PHI types."""
-        if not detected:
+        context_detected = context_detected or {}
+
+        if not detected and not context_detected:
             return "none"
 
         # SSN is highest risk
@@ -407,12 +587,24 @@ class PHIDetector:
         if "credit_card" in detected or "bank_account" in detected:
             return "critical"
 
+        # Passport is critical (international identifier)
+        if "passport" in detected:
+            return "critical"
+
+        # Context-aware patterns with names are high risk
+        if any(k in context_detected for k in ["patient_admission", "name_with_dob", "provider_patient"]):
+            return "high"
+
         # Multiple types or MRN is high risk
-        if len(detected) > 1 or "mrn" in detected:
+        if len(detected) + len(context_detected) > 1 or "mrn" in detected:
             return "high"
 
         # Medicare ID or driver's license is high risk
         if "medicare_id" in detected or "drivers_license" in detected:
+            return "high"
+
+        # Health plan IDs or biometric refs are high risk
+        if "health_plan_id" in detected or "biometric_ref" in detected:
             return "high"
 
         return "medium"
@@ -429,9 +621,16 @@ class PHIDetector:
         """
         masked_text = text
 
+        # Mask standard patterns
         for phi_type, pattern in self.patterns.items():
             token = REDACTION_TOKENS.get(phi_type, f"[{phi_type.upper()}_REDACTED]")
             masked_text = pattern.sub(token, masked_text)
+
+        # Mask context-aware patterns
+        if self.include_context_aware:
+            for context_type, pattern in self.context_patterns.items():
+                token = REDACTION_TOKENS.get(context_type, f"[{context_type.upper()}_REDACTED]")
+                masked_text = pattern.sub(token, masked_text)
 
         # Mask detected names if NER is enabled
         if self.use_ner:
@@ -470,7 +669,8 @@ def create_hipaa_compliant_detector() -> PHIDetector:
     """Create a fully-configured HIPAA-compliant PHI detector."""
     return PHIDetector(
         use_ner=True,
-        include_extended=True
+        include_extended=True,
+        include_context_aware=True
     )
 
 

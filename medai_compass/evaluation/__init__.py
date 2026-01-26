@@ -60,6 +60,42 @@ from medai_compass.evaluation.ai_evaluation import (
     EvaluationReport,
 )
 
+# Training and Inference Optimization Benchmarks
+from medai_compass.evaluation.training_benchmarks import (
+    TrainingThroughputBenchmark,
+    MemoryEfficiencyBenchmark,
+    ScalingEfficiencyBenchmark,
+    ConvergenceBenchmark,
+    TrainingBenchmarkSuite,
+    ThroughputMetrics,
+    MemoryMetrics,
+    ScalingMetrics,
+    ConvergenceMetrics,
+)
+from medai_compass.evaluation.inference_benchmarks import (
+    LatencyBenchmark,
+    ThroughputBenchmark,
+    BatchEfficiencyBenchmark,
+    InferenceMemoryBenchmark,
+    InferenceBenchmarkSuite,
+    LatencyMetrics,
+    InferenceThroughputMetrics,
+    BatchEfficiencyMetrics,
+    InferenceMemoryMetrics,
+    benchmark_inference_optimization,
+)
+from medai_compass.evaluation.optimization_quality_gates import (
+    TrainingQualityGates,
+    InferenceQualityGates,
+    QualityGateChecker,
+    QualityGateStatus,
+    QualityGateResult as OptimizationQualityGateResult,
+    PRODUCTION_TRAINING_GATES,
+    PRODUCTION_INFERENCE_GATES,
+    DEVELOPMENT_TRAINING_GATES,
+    DEVELOPMENT_INFERENCE_GATES,
+)
+
 __all__ = [
     # Domain-specific Evaluators
     "DiagnosticEvaluator",
@@ -97,4 +133,35 @@ __all__ = [
     "ClinicalAccuracyEvaluator",
     "ComprehensiveEvaluator",
     "EvaluationReport",
+    # Training Optimization Benchmarks
+    "TrainingThroughputBenchmark",
+    "MemoryEfficiencyBenchmark",
+    "ScalingEfficiencyBenchmark",
+    "ConvergenceBenchmark",
+    "TrainingBenchmarkSuite",
+    "ThroughputMetrics",
+    "MemoryMetrics",
+    "ScalingMetrics",
+    "ConvergenceMetrics",
+    # Inference Optimization Benchmarks
+    "LatencyBenchmark",
+    "ThroughputBenchmark",
+    "BatchEfficiencyBenchmark",
+    "InferenceMemoryBenchmark",
+    "InferenceBenchmarkSuite",
+    "LatencyMetrics",
+    "InferenceThroughputMetrics",
+    "BatchEfficiencyMetrics",
+    "InferenceMemoryMetrics",
+    "benchmark_inference_optimization",
+    # Optimization Quality Gates
+    "TrainingQualityGates",
+    "InferenceQualityGates",
+    "QualityGateChecker",
+    "QualityGateStatus",
+    "OptimizationQualityGateResult",
+    "PRODUCTION_TRAINING_GATES",
+    "PRODUCTION_INFERENCE_GATES",
+    "DEVELOPMENT_TRAINING_GATES",
+    "DEVELOPMENT_INFERENCE_GATES",
 ]

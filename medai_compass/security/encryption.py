@@ -21,6 +21,8 @@ class PHIEncryptor:
 
     Uses Fernet (AES-128-CBC with HMAC) for symmetric encryption.
     In production, use dedicated key management (e.g., HashiCorp Vault).
+
+    SECURITY: Keys must be exactly 32 bytes (256 bits) for full entropy.
     """
 
     def __init__(self, key: bytes = None):
@@ -29,10 +31,19 @@ class PHIEncryptor:
 
         Args:
             key: 32-byte encryption key. If None, generates a new key.
+
+        Raises:
+            ValueError: If key is provided but not exactly 32 bytes.
         """
         if key is None:
             key = self.generate_key()
-        self._fernet = Fernet(base64.urlsafe_b64encode(key[:32].ljust(32, b'\0')))
+        elif len(key) != 32:
+            raise ValueError(
+                f"Encryption key must be exactly 32 bytes (256 bits), "
+                f"got {len(key)} bytes. Use generate_key() for secure key generation."
+            )
+        # SECURITY FIX: Removed null-byte padding that reduced entropy
+        self._fernet = Fernet(base64.urlsafe_b64encode(key))
 
     @staticmethod
     def generate_key() -> bytes:

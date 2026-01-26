@@ -31,6 +31,11 @@ from .megatron_parallelism import (
     TensorParallelTrainer,
     PipelineParallelTrainer,
     MegatronOptimizer,
+    MegatronTPPPTrainer,
+    DualPipeConfig,
+    DualPipeSchedule,
+    DualPipeTrainer,
+    DualPipeWrapper,
     check_megatron_available,
 )
 from .fsdp2_trainer import (
@@ -59,7 +64,13 @@ __all__ = [
     "TensorParallelTrainer",
     "PipelineParallelTrainer",
     "MegatronOptimizer",
+    "MegatronTPPPTrainer",
     "check_megatron_available",
+    # DualPipe
+    "DualPipeConfig",
+    "DualPipeSchedule",
+    "DualPipeTrainer",
+    "DualPipeWrapper",
     # FSDP2
     "FSDP2Trainer",
     "DTensorSharding",

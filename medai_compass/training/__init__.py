@@ -77,6 +77,15 @@ from medai_compass.training.optimized import (
     OptimizedTrainingPipeline,
 )
 
+# Strategy Selector for Distributed Training
+from medai_compass.training.strategy_selector import (
+    TrainingStrategySelector,
+    TrainingStrategy,
+    StrategyType,
+    select_training_strategy,
+    auto_select_training_strategy,
+)
+
 __all__ = [
     # Core trainer
     "MedGemmaTrainer",
@@ -117,6 +126,12 @@ __all__ = [
     "DICOMTrainingPipeline",
     "H100Optimizer",
     "OptimizedTrainingPipeline",
+    # Strategy Selector
+    "TrainingStrategySelector",
+    "TrainingStrategy",
+    "StrategyType",
+    "select_training_strategy",
+    "auto_select_training_strategy",
 ]
 
 # Model profile constants for easy access

@@ -11,6 +11,7 @@ Provides high-performance inference with:
 """
 
 import logging
+import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -20,6 +21,9 @@ import threading
 from collections import deque
 
 logger = logging.getLogger(__name__)
+
+# Default model name from environment variable (configurable via UI dashboard settings)
+DEFAULT_MODEL_NAME = os.environ.get("MEDGEMMA_MODEL_NAME", "medgemma-27b")
 
 
 def check_flash_attention_available() -> bool:
@@ -93,8 +97,8 @@ class H100InferenceConfig:
     max_wait_ms: int = 50
     pad_to_multiple: int = 8
 
-    # Model Settings
-    model_name: str = "medgemma-4b"
+    # Model Settings - defaults to env var MEDGEMMA_MODEL_NAME or "medgemma-27b"
+    model_name: str = field(default_factory=lambda: os.environ.get("MEDGEMMA_MODEL_NAME", "medgemma-27b"))
     use_tensor_parallelism: bool = False
     tensor_parallel_size: int = 1
 

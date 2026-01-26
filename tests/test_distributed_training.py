@@ -537,3 +537,310 @@ class TestParallelismStrategy:
         )
         # 27B model needs TP and possibly PP
         assert config.tensor_parallel_size >= 2
+
+
+# =============================================================================
+# DualPipe Tests
+# =============================================================================
+
+class TestDualPipeConfig:
+    """Tests for DualPipe configuration."""
+
+    def test_config_creation(self):
+        """Verify DualPipe config can be created."""
+        from medai_compass.training.distributed import DualPipeConfig
+
+        config = DualPipeConfig()
+        assert config is not None
+        assert hasattr(config, "num_stages")
+        assert hasattr(config, "num_micro_batches")
+
+    def test_default_values(self):
+        """Verify default configuration values."""
+        from medai_compass.training.distributed import DualPipeConfig
+
+        config = DualPipeConfig()
+        assert config.num_stages == 4
+        assert config.num_micro_batches == 8
+        assert config.overlap_p2p_comm is True
+        assert config.async_communication is True
+
+    def test_custom_configuration(self):
+        """Verify custom configuration."""
+        from medai_compass.training.distributed import DualPipeConfig
+
+        config = DualPipeConfig(
+            num_stages=8,
+            num_micro_batches=16,
+            overlap_p2p_comm=True,
+            scatter_gather_tensors=True,
+            pipeline_dtype="bfloat16"
+        )
+        assert config.num_stages == 8
+        assert config.num_micro_batches == 16
+        assert config.pipeline_dtype == "bfloat16"
+
+    def test_validation_micro_batches_vs_stages(self):
+        """Verify validation that micro_batches >= stages."""
+        from medai_compass.training.distributed import DualPipeConfig
+        import pytest
+
+        # Should raise error when micro_batches < stages
+        with pytest.raises(ValueError, match="num_micro_batches.*must be.*num_stages"):
+            DualPipeConfig(num_stages=8, num_micro_batches=4)
+
+
+class TestDualPipeSchedule:
+    """Tests for DualPipe scheduling."""
+
+    def test_schedule_creation(self):
+        """Verify DualPipe schedule can be created."""
+        from medai_compass.training.distributed import DualPipeSchedule
+
+        schedule = DualPipeSchedule(num_stages=4, num_micro_batches=8)
+        assert schedule is not None
+        assert schedule.num_stages == 4
+        assert schedule.num_micro_batches == 8
+
+    def test_get_schedule_for_stage(self):
+        """Verify schedule generation for specific stage."""
+        from medai_compass.training.distributed import DualPipeSchedule
+
+        schedule = DualPipeSchedule(num_stages=4, num_micro_batches=8)
+        steps = schedule.get_schedule(stage_id=0)
+        assert isinstance(steps, list)
+        assert len(steps) > 0
+
+    def test_schedule_step_attributes(self):
+        """Verify schedule step has required attributes."""
+        from medai_compass.training.distributed import DualPipeSchedule
+
+        schedule = DualPipeSchedule(num_stages=4, num_micro_batches=8)
+        steps = schedule.get_schedule(stage_id=0)
+        step = steps[0]
+
+        assert hasattr(step, "micro_batch_id")
+        assert hasattr(step, "is_forward")
+        assert hasattr(step, "is_send")
+        assert hasattr(step, "is_recv")
+
+    def test_bubble_ratio_calculation(self):
+        """Verify bubble ratio calculation."""
+        from medai_compass.training.distributed import DualPipeSchedule
+
+        # DualPipe should have approximately (p-1)/(2m) bubble ratio
+        schedule = DualPipeSchedule(num_stages=4, num_micro_batches=8, overlap_communication=True)
+        bubble_ratio = schedule.get_bubble_ratio()
+
+        # With p=4, m=8, expected ~3/16 = 0.1875
+        assert bubble_ratio < 0.25  # Should be less than standard 1F1B
+        assert bubble_ratio > 0
+
+    def test_schedule_repr(self):
+        """Verify schedule string representation."""
+        from medai_compass.training.distributed import DualPipeSchedule
+
+        schedule = DualPipeSchedule(num_stages=4, num_micro_batches=8)
+        repr_str = repr(schedule)
+        assert "DualPipeSchedule" in repr_str
+        assert "num_stages=4" in repr_str
+        assert "num_micro_batches=8" in repr_str
+
+
+class TestDualPipeTrainer:
+    """Tests for DualPipe trainer."""
+
+    def test_trainer_creation(self):
+        """Verify DualPipe trainer can be created."""
+        from medai_compass.training.distributed import DualPipeTrainer, DualPipeConfig
+
+        config = DualPipeConfig(num_stages=4, num_micro_batches=8)
+        trainer = DualPipeTrainer(config)
+        assert trainer is not None
+
+    def test_trainer_properties(self):
+        """Verify trainer has required properties."""
+        from medai_compass.training.distributed import DualPipeTrainer, DualPipeConfig
+
+        config = DualPipeConfig(num_stages=4, num_micro_batches=8)
+        trainer = DualPipeTrainer(config)
+
+        assert trainer.num_stages == 4
+        assert trainer.num_micro_batches == 8
+        assert isinstance(trainer.bubble_ratio, float)
+
+    def test_trainer_has_parallelize_method(self):
+        """Verify trainer has parallelize method."""
+        from medai_compass.training.distributed import DualPipeTrainer, DualPipeConfig
+
+        config = DualPipeConfig()
+        trainer = DualPipeTrainer(config)
+        assert hasattr(trainer, "parallelize")
+
+    def test_trainer_has_train_step_method(self):
+        """Verify trainer has train_step method."""
+        from medai_compass.training.distributed import DualPipeTrainer, DualPipeConfig
+
+        config = DualPipeConfig()
+        trainer = DualPipeTrainer(config)
+        assert hasattr(trainer, "train_step")
+
+    def test_trainer_config_from_dict(self):
+        """Verify trainer accepts config as dict."""
+        from medai_compass.training.distributed import DualPipeTrainer
+
+        config_dict = {
+            "num_stages": 4,
+            "num_micro_batches": 8,
+            "overlap_p2p_comm": True
+        }
+        trainer = DualPipeTrainer(config_dict)
+        assert trainer.num_stages == 4
+
+
+class TestDualPipeWrapper:
+    """Tests for DualPipe model wrapper."""
+
+    def test_wrapper_creation(self):
+        """Verify DualPipe wrapper can be created."""
+        from medai_compass.training.distributed import DualPipeWrapper, DualPipeSchedule, DualPipeConfig
+        import torch.nn as nn
+
+        class SimpleModel(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.linear = nn.Linear(10, 10)
+            def forward(self, x):
+                return self.linear(x)
+
+        model = SimpleModel()
+        config = DualPipeConfig(num_stages=2, num_micro_batches=4)
+        schedule = DualPipeSchedule(num_stages=2, num_micro_batches=4)
+
+        wrapper = DualPipeWrapper(
+            model=model,
+            pp_group=None,
+            stage_id=0,
+            num_stages=2,
+            schedule=schedule,
+            config=config
+        )
+        assert wrapper is not None
+
+    def test_wrapper_has_layers(self):
+        """Verify wrapper has layers property."""
+        from medai_compass.training.distributed import DualPipeWrapper, DualPipeSchedule, DualPipeConfig
+        import torch.nn as nn
+
+        class SimpleModel(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.linear = nn.Linear(10, 10)
+            def forward(self, x):
+                return self.linear(x)
+
+        model = SimpleModel()
+        config = DualPipeConfig(num_stages=2, num_micro_batches=4)
+        schedule = DualPipeSchedule(num_stages=2, num_micro_batches=4)
+
+        wrapper = DualPipeWrapper(
+            model=model,
+            pp_group=None,
+            stage_id=0,
+            num_stages=2,
+            schedule=schedule,
+            config=config
+        )
+        assert hasattr(wrapper, "layers")
+
+    def test_wrapper_stage_info(self):
+        """Verify wrapper provides stage info."""
+        from medai_compass.training.distributed import DualPipeWrapper, DualPipeSchedule, DualPipeConfig
+        import torch.nn as nn
+
+        class SimpleModel(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.linear = nn.Linear(10, 10)
+            def forward(self, x):
+                return self.linear(x)
+
+        model = SimpleModel()
+        config = DualPipeConfig(num_stages=2, num_micro_batches=4)
+        schedule = DualPipeSchedule(num_stages=2, num_micro_batches=4)
+
+        wrapper = DualPipeWrapper(
+            model=model,
+            pp_group=None,
+            stage_id=0,
+            num_stages=2,
+            schedule=schedule,
+            config=config
+        )
+
+        info = wrapper.get_stage_info()
+        assert "stage_id" in info
+        assert "num_stages" in info
+        assert "bubble_ratio" in info
+        assert info["stage_id"] == 0
+        assert info["num_stages"] == 2
+
+
+class TestDualPipeBubbleReduction:
+    """Tests for DualPipe bubble reduction benefits."""
+
+    def test_dualpipe_vs_1f1b_bubble(self):
+        """Verify DualPipe reduces bubble compared to 1F1B."""
+        from medai_compass.training.distributed import DualPipeSchedule
+
+        p = 8  # stages
+        m = 16  # micro-batches
+
+        # Standard 1F1B bubble: (p-1)/m
+        standard_bubble = (p - 1) / m
+
+        # DualPipe with overlap: (p-1)/(2m)
+        dualpipe_schedule = DualPipeSchedule(
+            num_stages=p,
+            num_micro_batches=m,
+            overlap_communication=True
+        )
+        dualpipe_bubble = dualpipe_schedule.get_bubble_ratio()
+
+        # DualPipe should have lower bubble ratio
+        assert dualpipe_bubble < standard_bubble
+
+    def test_bubble_ratio_with_more_micro_batches(self):
+        """Verify bubble ratio decreases with more micro-batches."""
+        from medai_compass.training.distributed import DualPipeSchedule
+
+        p = 4  # stages
+
+        schedule_8 = DualPipeSchedule(num_stages=p, num_micro_batches=8)
+        schedule_16 = DualPipeSchedule(num_stages=p, num_micro_batches=16)
+
+        # More micro-batches should mean lower bubble ratio
+        assert schedule_16.get_bubble_ratio() < schedule_8.get_bubble_ratio()
+
+    def test_schedule_covers_all_micro_batches(self):
+        """Verify schedule processes all micro-batches forward and backward."""
+        from medai_compass.training.distributed import DualPipeSchedule
+
+        schedule = DualPipeSchedule(num_stages=4, num_micro_batches=8)
+
+        # Check for first stage
+        steps = schedule.get_schedule(stage_id=0)
+
+        # Count forward and backward passes
+        forward_mbs = set()
+        backward_mbs = set()
+
+        for step in steps:
+            if step.is_forward:
+                forward_mbs.add(step.micro_batch_id)
+            else:
+                backward_mbs.add(step.micro_batch_id)
+
+        # Should eventually process all micro-batches
+        assert len(forward_mbs) > 0
+        assert len(backward_mbs) > 0

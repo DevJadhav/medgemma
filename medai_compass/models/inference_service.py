@@ -34,6 +34,9 @@ from medai_compass.utils.gpu import (
 
 logger = logging.getLogger(__name__)
 
+# Default model name from environment variable (configurable via UI dashboard settings)
+DEFAULT_INFERENCE_MODEL = os.environ.get("MEDGEMMA_MODEL_NAME", "google/medgemma-27b-it")
+
 # Default checkpoint directories to search for trained models
 DEFAULT_CHECKPOINT_DIRS = [
     "./model_output/checkpoints",
@@ -83,7 +86,7 @@ class MedGemmaInferenceService:
     
     def __init__(
         self,
-        model_name: str = "google/medgemma-4b-it",
+        model_name: Optional[str] = None,  # Defaults to env var MEDGEMMA_MODEL_NAME
         prefer_modal: bool = True,  # Changed default to True
         force_local: bool = False,
         checkpoint_dirs: Optional[list[str]] = None
@@ -97,7 +100,7 @@ class MedGemmaInferenceService:
             force_local: Never use Modal, even if local GPU unavailable
             checkpoint_dirs: Directories to search for trained models
         """
-        self.model_name = model_name
+        self.model_name = model_name or DEFAULT_INFERENCE_MODEL
         self.prefer_modal = prefer_modal or os.environ.get("PREFER_MODAL_GPU", "").lower() == "true"
         self.force_local = force_local
         self.checkpoint_dirs = checkpoint_dirs or DEFAULT_CHECKPOINT_DIRS

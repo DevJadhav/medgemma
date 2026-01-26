@@ -33,6 +33,16 @@ from .optimized import (
     check_flash_attention_available,
 )
 
+# Strategy Selector for Inference Backends
+from .strategy_selector import (
+    InferenceStrategySelector,
+    InferenceBackend,
+    InferenceBackendConfig,
+    BackendType,
+    select_inference_backend,
+    auto_select_inference_backend,
+)
+
 __all__ = [
     # Configuration
     "H100InferenceConfig",
@@ -56,4 +66,11 @@ __all__ = [
     "ThroughputBenchmark",
     # Utilities
     "check_flash_attention_available",
+    # Strategy Selector
+    "InferenceStrategySelector",
+    "InferenceBackend",
+    "InferenceBackendConfig",
+    "BackendType",
+    "select_inference_backend",
+    "auto_select_inference_backend",
 ]

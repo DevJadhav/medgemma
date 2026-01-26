@@ -59,6 +59,8 @@ dependencies = [
     "peft>=0.10.0",
     # Async event loop nesting
     "nest-asyncio>=1.6.0",
+    "aiohttp>=3.13.3",
+    "aiohttp-cors>=0.8.1",
 ]
 
 [project.optional-dependencies]
@@ -68,13 +70,14 @@ dev = [
     "pytest-cov>=4.1.0",
     "pytest-asyncio>=0.23.0",
     "pytest-mock>=3.12.0",
+    "pytest-timeout>=2.3.0",
     "hypothesis>=6.98.0",
-    
+
     # Code Quality
     "ruff>=0.2.0",
     "mypy>=1.8.0",
     "pre-commit>=3.6.0",
-    
+
     # Documentation
     "mkdocs>=1.5.0",
     "mkdocs-material>=9.5.0",
@@ -141,7 +144,7 @@ training = [
     # Experiment tracking
     "mlflow>=2.10.0",
     # Distributed training (Linux/CUDA only)
-    "deepspeed>=0.13.0; sys_platform == 'linux'",
+    "deepspeed>=0.14.0; sys_platform == 'linux'",
     # Data handling
     "datasets>=2.17.0",
     "safetensors>=0.4.0",
@@ -172,6 +175,22 @@ training = [
     "diffusers>=0.25.0",                    # Diffusion models for image synthesis
     "tqdm>=4.66.0",                         # Progress tracking
     "jsonlines>=4.0.0",                     # JSON Lines file handling
+    # Phase 6: Advanced Distributed Training
+    "triton>=2.2.0; sys_platform == 'linux'",  # Triton for custom fused kernels
+]
+
+# Advanced distributed training (Megatron, FSDP2, DualPipe)
+distributed = [
+    # NVIDIA Megatron-Core for Tensor/Pipeline Parallelism
+    "megatron-core>=0.5.0; sys_platform == 'linux'",
+    # DeepSpeed for ZeRO optimization
+    "deepspeed>=0.14.0; sys_platform == 'linux'",
+    # Triton for fused kernel optimizations
+    "triton>=2.2.0; sys_platform == 'linux'",
+    # Flash Attention 2 for memory-efficient attention
+    "flash-attn>=2.5.0; sys_platform == 'linux'",
+    # NVIDIA Apex for additional fused operations (optional)
+    # "apex @ git+https://github.com/NVIDIA/apex.git; sys_platform == 'linux'",
 ]
 
 # All optional dependencies
@@ -181,7 +200,12 @@ all = [
 
 # All + vLLM (Linux/CUDA only)
 all-cuda = [
-    "medai-compass[all,vllm]",
+    "medai-compass[all,vllm,distributed]",
+]
+
+# Full production deployment (Linux/CUDA with all optimizations)
+production = [
+    "medai-compass[all-cuda]",
 ]
 
 [build-system]

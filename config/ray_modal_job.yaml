@@ -1,0 +1,110 @@
+# Ray Job Configuration for MedGemma Training on Modal GPUs
+#
+# Usage:
+#   ray job submit --config config/ray_modal_job.yaml -- python scripts/ray_modal_train.py train
+#
+# Or with specific arguments:
+#   ray job submit --config config/ray_modal_job.yaml -- python scripts/ray_modal_train.py train --model medgemma-4b --max-steps 1000
+
+# Job metadata
+metadata:
+  name: medgemma-training
+  description: MedGemma training pipeline on Modal H100 GPUs
+  version: "1.0.0"
+
+# Runtime environment
+runtime_env:
+  # Working directory
+  working_dir: .
+
+  # Python dependencies
+  pip:
+    - torch>=2.2.0
+    - transformers>=4.40.0
+    - accelerate>=0.28.0
+    - peft>=0.10.0
+    - datasets>=2.17.0
+    - deepspeed>=0.13.0
+    - modal>=0.55.0
+    - mlflow>=2.10.0
+    - ray[train]==2.9.0
+    - huggingface_hub>=0.20.0
+
+  # Environment variables (can be overridden)
+  env_vars:
+    PYTHONPATH: "${RAY_RUNTIME_ENV_WORKING_DIR}"
+    HF_HOME: "/tmp/huggingface"
+
+  # Exclude unnecessary files
+  excludes:
+    - "*.pyc"
+    - "__pycache__"
+    - ".git"
+    - "*.egg-info"
+    - ".venv"
+    - "node_modules"
+    - "frontend/node_modules"
+
+# Entrypoint configurations for different commands
+entrypoints:
+  # Verify Modal setup
+  verify:
+    script: scripts/ray_modal_train.py
+    args: ["verify"]
+    resources:
+      cpu: 2
+
+  # Download datasets
+  download:
+    script: scripts/ray_modal_train.py
+    args: ["download", "--datasets", "all"]
+    resources:
+      cpu: 4
+    timeout: 7200  # 2 hours
+
+  # Train MedGemma 4B
+  train_4b:
+    script: scripts/ray_modal_train.py
+    args:
+      - "train"
+      - "--model"
+      - "medgemma-4b"
+      - "--max-steps"
+      - "1000"
+    resources:
+      cpu: 4
+    timeout: 86400  # 24 hours
+
+  # Train MedGemma 27B
+  train_27b:
+    script: scripts/ray_modal_train.py
+    args:
+      - "train"
+      - "--model"
+      - "medgemma-27b"
+      - "--max-steps"
+      - "5000"
+    resources:
+      cpu: 8
+    timeout: 172800  # 48 hours
+
+  # Evaluate model
+  evaluate:
+    script: scripts/ray_modal_train.py
+    args: ["evaluate", "--quick"]
+    resources:
+      cpu: 4
+    timeout: 3600  # 1 hour
+
+  # Full pipeline
+  pipeline:
+    script: scripts/ray_modal_train.py
+    args:
+      - "pipeline"
+      - "--model"
+      - "medgemma-4b"
+      - "--max-steps"
+      - "1000"
+    resources:
+      cpu: 4
+    timeout: 172800  # 48 hours

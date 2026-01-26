@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Navigation } from '@/components/Navigation';
 import { Card, CardContent, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Alert } from '@/components/ui/Alert';
+import { useSettings, useInferenceStatus, useRAGStats } from '@/hooks/useApi';
 
 interface SettingSection {
   id: string;
@@ -196,6 +197,18 @@ function SettingRow({ setting, onUpdate }: { setting: Setting; onUpdate: (id: st
 }
 
 export default function SettingsPage() {
+  // Backend hooks
+  const {
+    settings: backendSettings,
+    loading: settingsLoading,
+    saving,
+    error: settingsError,
+    lastSaved,
+    updateSettings,
+  } = useSettings();
+  const { status: inferenceStatus, loading: inferenceLoading } = useInferenceStatus();
+  const { stats: ragStats, loading: ragLoading } = useRAGStats();
+
   const [sections, setSections] = useState<SettingSection[]>(() => {
     // Try to load from localStorage first
     if (typeof window !== 'undefined') {
@@ -212,6 +225,32 @@ export default function SettingsPage() {
   });
   const [saved, setSaved] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Sync backend settings with local state when loaded
+  useEffect(() => {
+    if (backendSettings) {
+      setSections(prev => {
+        const newSections = [...prev];
+        // Update model_version from backend
+        const aiSection = newSections.find(s => s.id === 'ai');
+        if (aiSection) {
+          const modelSetting = aiSection.settings.find(s => s.id === 'model_version');
+          if (modelSetting && backendSettings.model) {
+            modelSetting.value = backendSettings.model;
+            // Update options if available
+            if (backendSettings.available_models && backendSettings.available_models.length > 0) {
+              modelSetting.options = backendSettings.available_models.map(m => ({
+                label: m.includes('4b') ? 'MedGemma 4B IT' : m.includes('27b') ? 'MedGemma 27B IT' : m,
+                value: m,
+              }));
+            }
+          }
+        }
+        return newSections;
+      });
+    }
+  }, [backendSettings]);
 
   const handleUpdate = React.useCallback((sectionId: string, settingId: string, value: any) => {
     setSections(prev => {
@@ -229,26 +268,44 @@ export default function SettingsPage() {
     });
     setHasChanges(true);
     setSaved(false);
+    setSaveError(null);
   }, []);
 
-  const handleSave = React.useCallback(() => {
-    // In production, this would call the API to save settings
-    console.log('Saving settings:', sections);
-    // Save to localStorage for persistence
+  const handleSave = React.useCallback(async () => {
+    setSaveError(null);
+
+    // Extract settings that need to be synced with backend
+    const aiSection = sections.find(s => s.id === 'ai');
+    const modelSetting = aiSection?.settings.find(s => s.id === 'model_version');
+
+    // Save to backend
+    if (modelSetting) {
+      const result = await updateSettings({
+        model: String(modelSetting.value),
+      });
+
+      if (!result) {
+        setSaveError('Failed to sync with backend. Local settings saved.');
+      }
+    }
+
+    // Always save to localStorage
     try {
       localStorage.setItem('medai_settings', JSON.stringify(sections));
     } catch (e) {
       console.error('Failed to save settings to localStorage:', e);
     }
+
     setSaved(true);
     setHasChanges(false);
     setTimeout(() => setSaved(false), 3000);
-  }, [sections]);
+  }, [sections, updateSettings]);
 
   const handleReset = React.useCallback(() => {
     setSections(JSON.parse(JSON.stringify(defaultSections)));
     setHasChanges(false);
     setSaved(false);
+    setSaveError(null);
   }, []);
 
   return (
@@ -278,7 +335,19 @@ export default function SettingsPage() {
 
         {saved && (
           <Alert variant="success" className="mb-6">
-            Settings saved successfully.
+            Settings saved successfully.{lastSaved && ` (${lastSaved.toLocaleTimeString()})`}
+          </Alert>
+        )}
+
+        {saveError && (
+          <Alert variant="warning" className="mb-6">
+            {saveError}
+          </Alert>
+        )}
+
+        {settingsError && (
+          <Alert variant="error" className="mb-6">
+            Backend error: {settingsError}
           </Alert>
         )}
 
@@ -318,14 +387,68 @@ export default function SettingsPage() {
                 <p className="font-medium font-mono text-xs">http://localhost:8000</p>
               </div>
               <div>
-                <p className="text-gray-500">Models Loaded</p>
-                <p className="font-medium">MedGemma 4B, CXR Foundation, Path Foundation</p>
+                <p className="text-gray-500">Current Model</p>
+                <p className="font-medium">
+                  {settingsLoading ? 'Loading...' : backendSettings?.model || 'Not configured'}
+                </p>
+              </div>
+              <div>
+                <p className="text-gray-500">Inference Backend</p>
+                <Badge variant={backendSettings?.gpu_available ? 'success' : 'info'}>
+                  {backendSettings?.inference_backend || 'Unknown'}
+                </Badge>
               </div>
               <div>
                 <p className="text-gray-500">Environment</p>
-                <Badge variant="info">Development</Badge>
+                <Badge variant="info">{backendSettings?.environment || 'Development'}</Badge>
+              </div>
+              <div>
+                <p className="text-gray-500">GPU Status</p>
+                {inferenceLoading ? (
+                  <span className="text-gray-400">Checking...</span>
+                ) : inferenceStatus?.model_loaded ? (
+                  <Badge variant="success">
+                    {inferenceStatus.gpu_name || 'GPU Active'}
+                  </Badge>
+                ) : (
+                  <Badge variant="warning">No GPU</Badge>
+                )}
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* RAG Knowledge Base */}
+        <Card className="mt-6">
+          <CardHeader>
+            <h2 className="text-lg font-semibold text-gray-900">RAG Knowledge Base</h2>
+            <p className="text-sm text-gray-500">Retrieval-Augmented Generation status</p>
+          </CardHeader>
+          <CardContent>
+            {ragLoading ? (
+              <p className="text-gray-500">Loading RAG statistics...</p>
+            ) : ragStats ? (
+              <div className="grid md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-gray-500">Total Documents</p>
+                  <p className="font-medium">{ragStats.total_documents.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Total Chunks</p>
+                  <p className="font-medium">{ragStats.total_chunks.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Embedding Model</p>
+                  <p className="font-medium font-mono text-xs">{ragStats.embedding_model}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Vector Store</p>
+                  <Badge variant="info">{ragStats.vector_store_type}</Badge>
+                </div>
+              </div>
+            ) : (
+              <p className="text-gray-500">RAG not configured or unavailable</p>
+            )}
           </CardContent>
         </Card>
 

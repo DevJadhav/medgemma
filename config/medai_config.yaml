@@ -1,0 +1,79 @@
+# MedAI Compass Configuration
+# This file provides centralized configuration for the application.
+# Values can be overridden by environment variables with the MEDAI_ prefix.
+
+# Environment: development, staging, production
+environment: development
+
+# Debug mode (enable verbose logging)
+debug: false
+
+# Logging level: DEBUG, INFO, WARNING, ERROR
+log_level: INFO
+
+# Confidence thresholds for AI decision making
+confidence:
+  high_confidence: 0.90
+  medium_confidence: 0.85
+  low_confidence: 0.80
+  escalation_threshold: 0.70
+  auto_approve_threshold: 0.95
+
+# Escalation configuration
+escalation:
+  keywords:
+    - emergency
+    - urgent
+    - critical
+    - life-threatening
+    - chest pain
+    - difficulty breathing
+    - severe bleeding
+    - stroke symptoms
+    - loss of consciousness
+    - allergic reaction
+  confidence_threshold: 0.70
+  auto_escalate_phi_breach: true
+  escalation_timeout_seconds: 300
+
+# PHI detection configuration
+phi_detection:
+  enable_ner: true
+  enable_context_aware: true
+  enable_extended_patterns: true
+
+# Model inference configuration
+inference:
+  default_model: medgemma-27b
+  max_tokens: 2048
+  temperature: 0.1
+  timeout_seconds: 90
+  retry_attempts: 3
+  preferred_backend: modal
+  fallback_backend: local
+
+# Rate limiting
+rate_limit:
+  requests_per_minute: 60
+  requests_per_hour: 1000
+  burst_limit: 10
+  user_requests_per_minute: 30
+  user_requests_per_hour: 500
+
+# Data retention (HIPAA compliance)
+retention:
+  audit_log_retention_days: 2190  # 6 years
+  session_retention_hours: 24
+  cache_ttl_seconds: 3600
+  temp_file_retention_hours: 1
+
+# Security configuration
+security:
+  encryption_algorithm: AES-256-GCM
+  key_rotation_days: 90
+  session_timeout_minutes: 30
+  max_login_attempts: 5
+  lockout_duration_minutes: 15
+  cors_origins:
+    - http://localhost:3000
+    - https://localhost:3000

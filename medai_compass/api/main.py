@@ -6,7 +6,9 @@ Uses Redis for session management and caching.
 """
 
 import os
+import threading
 import time
+from collections import deque
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -512,10 +514,90 @@ async def metrics():
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
-# Track API startup time for uptime calculation
-_api_start_time = time.time()
-_request_times: list[float] = []  # Recent request times for avg calculation
-_error_count = 0
+# =============================================================================
+# Thread-Safe Metrics (Fixed from global mutable state)
+# =============================================================================
+
+class ThreadSafeMetrics:
+    """
+    Thread-safe metrics counter for concurrent request tracking.
+
+    Solves race condition issues with global mutable state under load.
+    Uses locks for atomic operations and bounded deque for memory efficiency.
+    """
+
+    def __init__(self, max_request_history: int = 1000):
+        """
+        Initialize thread-safe metrics.
+
+        Args:
+            max_request_history: Maximum number of request times to keep
+        """
+        self._lock = threading.Lock()
+        self._start_time = time.time()
+        self._request_times: deque[float] = deque(maxlen=max_request_history)
+        self._error_count = 0
+        self._total_requests = 0
+
+    @property
+    def uptime(self) -> float:
+        """Get API uptime in seconds."""
+        return time.time() - self._start_time
+
+    def record_request(self, response_time_ms: float) -> None:
+        """
+        Record a request with its response time.
+
+        Args:
+            response_time_ms: Response time in milliseconds
+        """
+        with self._lock:
+            self._request_times.append(response_time_ms)
+            self._total_requests += 1
+
+    def record_error(self) -> None:
+        """Record an error occurrence."""
+        with self._lock:
+            self._error_count += 1
+
+    def get_metrics(self) -> dict:
+        """
+        Get current metrics snapshot.
+
+        Returns:
+            Dictionary with metrics data
+        """
+        with self._lock:
+            request_times = list(self._request_times)
+            error_count = self._error_count
+            total_requests = self._total_requests
+
+        avg_response_time = sum(request_times) / len(request_times) if request_times else 0.0
+
+        return {
+            "uptime": self.uptime,
+            "total_requests": total_requests,
+            "error_count": error_count,
+            "avg_response_time_ms": avg_response_time,
+            "recent_request_count": len(request_times),
+            "error_rate": error_count / total_requests if total_requests > 0 else 0.0
+        }
+
+    def reset(self) -> None:
+        """Reset all metrics (useful for testing)."""
+        with self._lock:
+            self._request_times.clear()
+            self._error_count = 0
+            self._total_requests = 0
+
+
+# Global thread-safe metrics instance
+_metrics = ThreadSafeMetrics()
+
+# Legacy aliases for backwards compatibility (deprecated)
+_api_start_time = _metrics._start_time
+_request_times: deque[float] = _metrics._request_times
+_error_count = 0  # Deprecated: use _metrics.record_error()
 
 
 @app.get(
@@ -526,17 +608,16 @@ _error_count = 0
 async def get_system_metrics() -> SystemMetricsResponse:
     """
     Get real-time system metrics for the analytics dashboard.
-    
+
     Returns comprehensive system health and performance data including:
     - Service uptime and active sessions
     - Model and GPU status
     - Database and cache connectivity
     - Request throughput and latency
     """
-    global _request_times, _error_count
-    
-    # Calculate uptime
-    uptime = time.time() - _api_start_time
+    # Use thread-safe metrics
+    metrics_snapshot = _metrics.get_metrics()
+    uptime = metrics_snapshot["uptime"]
     
     # Check Redis connection and get active sessions
     active_sessions = 0
@@ -770,6 +851,113 @@ async def analyze_image(request: DiagnosticRequest) -> DiagnosticResponse:
                 os_module.remove(temp_file_path)
             except Exception:
                 pass  # Ignore cleanup errors
+
+
+# =============================================================================
+# Async Diagnostic Endpoints (Task 4.1: Celery Queuing)
+# =============================================================================
+class AsyncJobResponse(BaseModel):
+    """Response for async job submission."""
+    job_id: str
+    status: str
+    message: str = ""
+
+
+class JobStatusResponse(BaseModel):
+    """Response for job status query."""
+    job_id: str
+    status: str
+    progress: int = 0
+    result: Optional[dict] = None
+    error: Optional[str] = None
+    created_at: str = ""
+    updated_at: str = ""
+
+
+@app.post(
+    "/api/v1/diagnostic/analyze-async",
+    response_model=AsyncJobResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=["Diagnostic"],
+)
+async def analyze_image_async(request: DiagnosticRequest) -> AsyncJobResponse:
+    """
+    Submit async diagnostic image analysis.
+
+    Returns a job ID for polling status. Use for long-running analyses.
+    """
+    from medai_compass.workers.inference_tasks import (
+        create_job,
+        analyze_diagnostic_async,
+    )
+
+    # Create job
+    job_id = create_job(
+        "diagnostic",
+        metadata={
+            "image_type": request.image_type,
+            "patient_id": request.patient_id,
+        }
+    )
+
+    # Submit to Celery (or run inline for testing without Celery)
+    try:
+        analyze_diagnostic_async.delay(
+            job_id=job_id,
+            image_path=request.image_path,
+            image_base64=request.image_base64,
+            image_type=request.image_type,
+            patient_id=request.patient_id,
+            clinical_context=request.clinical_context,
+        )
+    except Exception:
+        # Celery not available, run synchronously
+        analyze_diagnostic_async(
+            job_id=job_id,
+            image_path=request.image_path,
+            image_base64=request.image_base64,
+            image_type=request.image_type,
+            patient_id=request.patient_id,
+            clinical_context=request.clinical_context,
+        )
+
+    return AsyncJobResponse(
+        job_id=job_id,
+        status="accepted",
+        message="Analysis job submitted. Poll /api/v1/jobs/{job_id} for status.",
+    )
+
+
+@app.get(
+    "/api/v1/jobs/{job_id}",
+    response_model=JobStatusResponse,
+    tags=["Jobs"],
+)
+async def get_job_status(job_id: str) -> JobStatusResponse:
+    """
+    Get status of an async job.
+
+    Poll this endpoint to check job progress and retrieve results.
+    """
+    from medai_compass.workers.inference_tasks import get_job
+
+    job = get_job(job_id)
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job {job_id} not found",
+        )
+
+    return JobStatusResponse(
+        job_id=job["job_id"],
+        status=job["status"],
+        progress=job.get("progress", 0),
+        result=job.get("result"),
+        error=job.get("error"),
+        created_at=job.get("created_at", ""),
+        updated_at=job.get("updated_at", ""),
+    )
 
 
 # =============================================================================
@@ -1598,6 +1786,153 @@ async def get_inference_status():
             modal_available=False,
             device=None
         )
+
+
+# =============================================================================
+# Settings Models and Endpoints
+# =============================================================================
+class SettingsResponse(BaseModel):
+    """Current settings response."""
+
+    model_name: str = Field(..., description="Current model name")
+    available_models: list[str] = Field(..., description="Available model options")
+    inference_backend: str = Field(..., description="Current inference backend")
+    available_backends: list[str] = Field(..., description="Available inference backends")
+    training_strategy: str = Field(..., description="Current training strategy")
+    available_strategies: list[str] = Field(..., description="Available training strategies")
+    prefer_modal: bool = Field(..., description="Prefer Modal GPU")
+    environment: str = Field(..., description="Current environment")
+
+
+class SettingsUpdateRequest(BaseModel):
+    """Settings update request."""
+
+    model_name: Optional[str] = Field(None, description="Model name to use")
+    inference_backend: Optional[str] = Field(None, description="Inference backend")
+    training_strategy: Optional[str] = Field(None, description="Training strategy")
+    prefer_modal: Optional[bool] = Field(None, description="Prefer Modal GPU")
+
+
+@app.get(
+    "/api/v1/settings",
+    response_model=SettingsResponse,
+    tags=["Settings"],
+)
+async def get_settings():
+    """
+    Get current system settings for the UI dashboard.
+
+    Returns model selection, inference backend, and training strategy settings.
+    These can be configured via environment variables for persistence.
+    """
+    from medai_compass.inference import InferenceStrategySelector
+    from medai_compass.training import TrainingStrategySelector
+
+    # Get current model from environment
+    current_model = os.environ.get("MEDGEMMA_MODEL_NAME", "medgemma-27b")
+
+    # Available models
+    available_models = [
+        "medgemma-4b",
+        "medgemma-27b",
+        "google/medgemma-4b-it",
+        "google/medgemma-27b-it",
+    ]
+
+    # Get inference backends
+    inference_selector = InferenceStrategySelector()
+    available_backends = inference_selector.list_backends()
+    current_backend = os.environ.get("INFERENCE_BACKEND", "vllm")
+
+    # Get training strategies
+    training_selector = TrainingStrategySelector()
+    available_strategies = training_selector.list_strategies()
+    current_strategy = os.environ.get("TRAINING_STRATEGY", "deepspeed_zero3")
+
+    # Modal preference
+    prefer_modal = os.environ.get("PREFER_MODAL_GPU", "true").lower() == "true"
+
+    # Environment
+    environment = os.environ.get("ENVIRONMENT", "development")
+
+    return SettingsResponse(
+        model_name=current_model,
+        available_models=available_models,
+        inference_backend=current_backend,
+        available_backends=available_backends,
+        training_strategy=current_strategy,
+        available_strategies=available_strategies,
+        prefer_modal=prefer_modal,
+        environment=environment,
+    )
+
+
+@app.put(
+    "/api/v1/settings",
+    response_model=SettingsResponse,
+    tags=["Settings"],
+)
+async def update_settings(request: SettingsUpdateRequest):
+    """
+    Update system settings from the UI dashboard.
+
+    Note: Changes are applied at runtime but require environment variable
+    updates for persistence across restarts. The dashboard should update
+    the .env file or deployment configuration for permanent changes.
+    """
+    # Update environment variables (runtime only)
+    if request.model_name:
+        os.environ["MEDGEMMA_MODEL_NAME"] = request.model_name
+
+    if request.inference_backend:
+        os.environ["INFERENCE_BACKEND"] = request.inference_backend
+
+    if request.training_strategy:
+        os.environ["TRAINING_STRATEGY"] = request.training_strategy
+
+    if request.prefer_modal is not None:
+        os.environ["PREFER_MODAL_GPU"] = "true" if request.prefer_modal else "false"
+
+    # Return updated settings
+    return await get_settings()
+
+
+@app.get(
+    "/api/v1/settings/models",
+    tags=["Settings"],
+)
+async def get_available_models():
+    """
+    Get list of available models with their configurations.
+
+    Returns detailed information about each available model including
+    memory requirements, recommended strategies, and capabilities.
+    """
+    models = [
+        {
+            "name": "medgemma-4b",
+            "hf_model_id": "google/medgemma-4b-it",
+            "parameters": "4B",
+            "memory_required_gb": 16,
+            "recommended_strategy": "single_gpu",
+            "capabilities": ["text", "vision"],
+            "description": "Lightweight model for fast inference and single-GPU training",
+        },
+        {
+            "name": "medgemma-27b",
+            "hf_model_id": "google/medgemma-27b-it",
+            "parameters": "27B",
+            "memory_required_gb": 80,
+            "recommended_strategy": "deepspeed_zero3",
+            "capabilities": ["text", "vision", "medical_reasoning"],
+            "description": "Full-scale model for production medical AI applications",
+        },
+    ]
+
+    return {
+        "models": models,
+        "current_model": os.environ.get("MEDGEMMA_MODEL_NAME", "medgemma-27b"),
+    }
 
 
 # =============================================================================

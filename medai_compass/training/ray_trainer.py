@@ -20,12 +20,16 @@ from .model_selector import get_training_config, select_model, validate_gpu_requ
 logger = logging.getLogger(__name__)
 
 
+# Environment variable for model selection (configurable via UI dashboard settings)
+DEFAULT_MODEL_NAME = os.environ.get("MEDGEMMA_MODEL_NAME", "medgemma-27b")
+
+
 @dataclass
 class TrainingConfig:
     """Configuration for MedGemma training job."""
-    
-    # Model selection
-    model_name: str = "medgemma-4b"
+
+    # Model selection - defaults to env var MEDGEMMA_MODEL_NAME or "medgemma-27b"
+    model_name: str = field(default_factory=lambda: os.environ.get("MEDGEMMA_MODEL_NAME", "medgemma-27b"))
     
     # Training parameters
     max_steps: int = 10000
@@ -381,3 +385,37 @@ class MedGemmaTrainer:
             logger.warning("MLflow not available, skipping experiment tracking")
         except Exception as e:
             logger.warning(f"Failed to set up MLflow: {e}")
+
+    def get_strategy(self):
+        """
+        Get the training strategy for this trainer's configuration.
+
+        Uses TrainingStrategySelector to return the appropriate distributed
+        training strategy based on the model and configuration.
+
+        Returns:
+            TrainingStrategy configured for this trainer's model and settings
+
+        Example:
+            >>> trainer = MedGemmaTrainer(config)
+            >>> strategy = trainer.get_strategy()
+            >>> print(strategy.name)  # 'deepspeed_zero3'
+        """
+        from .strategy_selector import TrainingStrategySelector
+
+        selector = TrainingStrategySelector()
+
+        # If distributed_strategy is explicitly set, use it
+        if self.config.distributed_strategy:
+            return selector.select(
+                self.config.distributed_strategy,
+                num_gpus=self.config.num_workers,
+            )
+
+        # Otherwise, auto-select based on model size
+        model_params = self.training_config.get("model_params", 4e9)
+        return selector.auto_select(
+            model_params=model_params,
+            num_gpus=self.config.num_workers,
+            gpu_memory_gb=80,  # Assume H100 80GB
+        )

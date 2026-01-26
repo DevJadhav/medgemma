@@ -659,3 +659,255 @@ export function useGuardrailsTest() {
 
   return { testGuardrails, loading, error };
 }
+
+// =============================================================================
+// Settings Hook - Backend Sync
+// =============================================================================
+
+export interface BackendSettings {
+  model: string;
+  inference_backend: string;
+  training_strategy: string;
+  available_models: string[];
+  available_backends: string[];
+  available_training_strategies: string[];
+  gpu_available: boolean;
+  environment: string;
+}
+
+export interface SettingsUpdateRequest {
+  model?: string;
+  inference_backend?: string;
+  training_strategy?: string;
+}
+
+export function useSettings() {
+  const [settings, setSettings] = useState<BackendSettings | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+
+  const fetchSettings = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetchAPI<BackendSettings>('/api/v1/settings');
+      setSettings(response);
+      return response;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch settings');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const updateSettings = useCallback(async (updates: SettingsUpdateRequest) => {
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await fetchAPI<BackendSettings>(
+        '/api/v1/settings',
+        {
+          method: 'PUT',
+          body: JSON.stringify(updates),
+        }
+      );
+      setSettings(response);
+      setLastSaved(new Date());
+      return response;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update settings');
+      return null;
+    } finally {
+      setSaving(false);
+    }
+  }, []);
+
+  // Fetch on mount
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
+
+  return {
+    settings,
+    loading,
+    saving,
+    error,
+    lastSaved,
+    fetchSettings,
+    updateSettings,
+  };
+}
+
+// =============================================================================
+// RAG Hook - Knowledge Base Integration
+// =============================================================================
+
+export interface RAGDocument {
+  id: string;
+  content: string;
+  metadata: Record<string, unknown>;
+  relevance_score?: number;
+}
+
+export interface RAGQueryResponse {
+  answer: string;
+  confidence: number;
+  sources: RAGDocument[];
+  citations: Array<{
+    text: string;
+    source_id: string;
+    relevance: number;
+  }>;
+  processing_time_ms: number;
+  disclaimer?: string;
+}
+
+export interface RAGRetrieveResponse {
+  documents: RAGDocument[];
+  total: number;
+  query: string;
+}
+
+export interface RAGStats {
+  total_documents: number;
+  total_chunks: number;
+  embedding_model: string;
+  vector_store_type: string;
+  last_updated?: string;
+}
+
+export function useRAG() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const query = useCallback(async (
+    queryText: string,
+    options?: {
+      top_k?: number;
+      include_sources?: boolean;
+      filter_metadata?: Record<string, unknown>;
+    }
+  ): Promise<RAGQueryResponse | null> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetchAPI<RAGQueryResponse>(
+        '/api/v1/rag/query',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            query: queryText,
+            top_k: options?.top_k ?? 5,
+            include_sources: options?.include_sources ?? true,
+            filter_metadata: options?.filter_metadata,
+          }),
+        }
+      );
+      return response;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'RAG query failed');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const retrieve = useCallback(async (
+    queryText: string,
+    topK: number = 5
+  ): Promise<RAGRetrieveResponse | null> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetchAPI<RAGRetrieveResponse>(
+        '/api/v1/rag/retrieve',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            query: queryText,
+            top_k: topK,
+          }),
+        }
+      );
+      return response;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Document retrieval failed');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { query, retrieve, loading, error };
+}
+
+export function useRAGStats() {
+  const [stats, setStats] = useState<RAGStats | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchStats = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetchAPI<RAGStats>('/api/v1/rag/stats');
+      setStats(response);
+      return response;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch RAG stats');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  return { stats, loading, error, refresh: fetchStats };
+}
+
+// =============================================================================
+// Inference Status Hook
+// =============================================================================
+
+export interface InferenceStatus {
+  status: string;
+  model_loaded: boolean;
+  model_path?: string;
+  model_source?: string;
+  gpu_name?: string;
+  gpu_memory_gb?: number;
+  is_trained_model?: boolean;
+}
+
+export function useInferenceStatus() {
+  const [status, setStatus] = useState<InferenceStatus | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchStatus = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetchAPI<InferenceStatus>('/api/v1/inference/status');
+      setStatus(response);
+      return response;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch inference status');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStatus();
+  }, [fetchStatus]);
+
+  return { status, loading, error, refresh: fetchStatus };
+}

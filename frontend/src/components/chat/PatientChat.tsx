@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { useChat } from '@/hooks/useChat';
+import { useRAG, type RAGDocument } from '@/hooks/useApi';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { MedicalDisclaimer } from './MedicalDisclaimer';
@@ -41,12 +42,33 @@ export function PatientChat({ patientId, className = '' }: PatientChatProps) {
     sendMessage,
   } = useChat(patientId);
 
+  // RAG integration
+  const { query: ragQuery, loading: ragLoading } = useRAG();
+  const [ragEnabled, setRagEnabled] = useState(false);
+  const [ragSources, setRagSources] = useState<RAGDocument[]>([]);
+  const [showSources, setShowSources] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Enhanced send with RAG
+  const handleSendWithRAG = async (message: string) => {
+    if (ragEnabled) {
+      // First, get RAG context
+      const ragResult = await ragQuery(message, { top_k: 3, include_sources: true });
+      if (ragResult?.sources) {
+        setRagSources(ragResult.sources);
+      }
+    } else {
+      setRagSources([]);
+    }
+    // Then send the message
+    await sendMessage(message);
+  };
 
   const welcomeMessage = {
     id: 'welcome',
@@ -72,17 +94,34 @@ export function PatientChat({ patientId, className = '' }: PatientChatProps) {
             <p className="text-xs text-gray-500">Powered by MedGemma</p>
           </div>
         </div>
-        {currentTriageLevel && (
-          <div data-testid="triage-indicator">
-            <Badge
-              variant={triageBadgeVariants[currentTriageLevel]}
-              pulse={currentTriageLevel === 'EMERGENCY'}
-              size="md"
-            >
-              {triageLabels[currentTriageLevel]}
-            </Badge>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {/* RAG Toggle */}
+          <button
+            onClick={() => setRagEnabled(!ragEnabled)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              ragEnabled
+                ? 'bg-primary-100 text-primary-700 border border-primary-200'
+                : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+            }`}
+            title="Toggle RAG-enhanced responses"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            RAG {ragEnabled ? 'ON' : 'OFF'}
+          </button>
+          {currentTriageLevel && (
+            <div data-testid="triage-indicator">
+              <Badge
+                variant={triageBadgeVariants[currentTriageLevel]}
+                pulse={currentTriageLevel === 'EMERGENCY'}
+                size="md"
+              >
+                {triageLabels[currentTriageLevel]}
+              </Badge>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Emergency alert banner */}
@@ -135,20 +174,66 @@ export function PatientChat({ patientId, className = '' }: PatientChatProps) {
         </div>
       </div>
 
+      {/* RAG Sources Panel */}
+      {ragEnabled && ragSources.length > 0 && (
+        <div className="px-5 py-3 border-t border-gray-100 bg-gray-50">
+          <button
+            onClick={() => setShowSources(!showSources)}
+            className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+          >
+            <svg
+              className={`w-4 h-4 transition-transform ${showSources ? 'rotate-90' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+            <span className="font-medium">Sources ({ragSources.length})</span>
+            <Badge variant="info" size="sm">RAG</Badge>
+          </button>
+          {showSources && (
+            <div className="mt-3 space-y-2 max-h-48 overflow-y-auto">
+              {ragSources.map((source, idx) => (
+                <div
+                  key={source.id || idx}
+                  className="p-3 bg-white rounded-lg border border-gray-200 text-sm"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium text-gray-700">Source {idx + 1}</span>
+                    {source.relevance_score && (
+                      <Badge variant="success" size="sm">
+                        {(source.relevance_score * 100).toFixed(0)}% match
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-gray-600 line-clamp-2">{source.content}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Input area */}
       <div className="p-5 border-t border-gray-100 bg-white">
         <div className="max-w-3xl mx-auto">
           <ChatInput
-            onSend={sendMessage}
-            loading={loading}
+            onSend={handleSendWithRAG}
+            loading={loading || ragLoading}
             disabled={false}
-            placeholder="Describe your symptoms or ask a health question..."
+            placeholder={ragEnabled
+              ? "Ask a question (RAG-enhanced with medical knowledge)..."
+              : "Describe your symptoms or ask a health question..."
+            }
           />
           <p className="text-xs text-gray-400 mt-3 text-center flex items-center justify-center gap-2">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
-            Your conversation is private and secure • Press Enter to send
+            Your conversation is private and secure
+            {ragEnabled && ' • RAG-enhanced'}
+            {' • Press Enter to send'}
           </p>
         </div>
       </div>

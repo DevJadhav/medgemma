@@ -15,8 +15,7 @@ Usage:
     modal run medai_compass/modal/training_app.py --model-name medgemma-27b
 """
 
-import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # Check if Modal is available
 try:
@@ -29,58 +28,60 @@ except ImportError:
 if MODAL_AVAILABLE:
     # Create Modal app
     app = modal.App("medai-compass-training")
-    
-    # Training image with CUDA and ML dependencies
-    training_image = (
+
+    # Lightweight image for GPU verification (faster to build)
+    verify_image = (
         modal.Image.debian_slim(python_version="3.11")
-        .apt_install("git", "curl", "build-essential")
         .pip_install(
-            # PyTorch with CUDA
             "torch>=2.2.0",
-            # ML/Training
             "transformers>=4.40.0",
-            "accelerate>=0.28.0",
-            "bitsandbytes>=0.42.0",
-            "peft>=0.10.0",
-            "datasets>=2.17.0",
-            # Distributed training
-            "deepspeed>=0.13.0",
-            "ray[train,tune]==2.9.0",
-            # Experiment tracking
-            "mlflow>=2.10.0",
-            # Flash Attention
-            "flash-attn>=2.5.0",
-            # Utilities
             "huggingface_hub>=0.20.0",
-            "scipy>=1.12.0",
-            "safetensors>=0.4.0",
-            "pyyaml>=6.0.0",
-            "minio>=7.2.0",
+        )
+    )
+
+    # Training image with CUDA and ML dependencies
+    # Use NVIDIA CUDA runtime as base for proper GPU support
+    training_image = (
+        modal.Image.from_registry(
+            "nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04",
+            add_python="3.11",
+        )
+        .apt_install("git", "curl")
+        .run_commands(
+            # Install uv for faster pip operations
+            "curl -LsSf https://astral.sh/uv/install.sh | sh",
+        )
+        .env({"PATH": "/root/.local/bin:$PATH"})
+        .run_commands(
+            # Install PyTorch 2.6 with CUDA 12.4 (latest stable)
+            "uv pip install --system torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124",
+            # Install ML training dependencies (pin transformers for MedGemma compatibility)
+            "uv pip install --system numpy 'transformers>=4.47.0' accelerate peft datasets "
+            "huggingface_hub scipy safetensors pyyaml sentencepiece tokenizers",
         )
         .env({
             "HF_HOME": "/root/.cache/huggingface",
             "TRANSFORMERS_CACHE": "/root/.cache/huggingface/transformers",
         })
     )
-    
+
     # Volumes for persistent storage
     model_cache = modal.Volume.from_name("medgemma-model-cache", create_if_missing=True)
-    training_data = modal.Volume.from_name("medgemma-training-data", create_if_missing=True)
+    training_data = modal.Volume.from_name("medgemma-data", create_if_missing=True)
     checkpoints = modal.Volume.from_name("medgemma-checkpoints", create_if_missing=True)
-    
+
     @app.cls(
         image=training_image,
-        gpu=modal.gpu.H100(count=8),  # 8x H100 for 27B training
+        gpu="H100:8",  # 8x H100 for 27B training
         volumes={
             "/root/.cache/huggingface": model_cache,
             "/data": training_data,
             "/checkpoints": checkpoints,
         },
         timeout=86400,  # 24 hours
-        container_idle_timeout=600,  # 10 min idle
+        scaledown_window=600,  # 10 min idle
         secrets=[
-            modal.Secret.from_name("huggingface-secret", required=False),
-            modal.Secret.from_name("mlflow-secret", required=False),
+            modal.Secret.from_name("huggingface-secret"),
         ],
     )
     class MedGemmaTrainer:
@@ -91,28 +92,28 @@ if MODAL_AVAILABLE:
         - MedGemma 4B IT: Single GPU training
         - MedGemma 27B IT: 8x H100 with DeepSpeed ZeRO-3
         """
-        
+
         @modal.enter()
         def setup(self):
             """Initialize training environment on container startup."""
             import torch
-            
+
             # Log GPU info
             if torch.cuda.is_available():
                 gpu_count = torch.cuda.device_count()
                 for i in range(gpu_count):
                     props = torch.cuda.get_device_properties(i)
                     print(f"GPU {i}: {props.name} ({props.total_memory / 1e9:.1f} GB)")
-            
+
             # Commit model cache
             model_cache.commit()
-        
+
         @modal.method()
         def train(
             self,
             model_name: str = "medgemma-27b",
-            train_data_path: Optional[str] = None,
-            eval_data_path: Optional[str] = None,
+            train_data_path: str | None = None,
+            eval_data_path: str | None = None,
             max_steps: int = 10000,
             batch_size: int = 1,
             learning_rate: float = 1e-4,
@@ -122,9 +123,9 @@ if MODAL_AVAILABLE:
             save_steps: int = 500,
             eval_steps: int = 500,
             warmup_ratio: float = 0.1,
-            mlflow_tracking_uri: Optional[str] = None,
-            experiment_name: Optional[str] = None,
-        ) -> Dict[str, Any]:
+            mlflow_tracking_uri: str | None = None,
+            experiment_name: str | None = None,
+        ) -> dict[str, Any]:
             """
             Run distributed training job.
             
@@ -148,14 +149,14 @@ if MODAL_AVAILABLE:
                 Training result dictionary
             """
             import torch
+            from peft import LoraConfig, TaskType, get_peft_model
             from transformers import (
                 AutoModelForCausalLM,
                 AutoTokenizer,
-                TrainingArguments,
                 Trainer,
+                TrainingArguments,
             )
-            from peft import LoraConfig, get_peft_model, TaskType
-            
+
             # Determine model configuration
             model_configs = {
                 "medgemma-4b": {
@@ -169,22 +170,22 @@ if MODAL_AVAILABLE:
                     "num_gpus": 8,
                 },
             }
-            
+
             # Normalize model name
             model_key = model_name.lower().replace("_", "-")
             if "4b" in model_key:
                 model_key = "medgemma-4b"
             elif "27b" in model_key:
                 model_key = "medgemma-27b"
-            
+
             config = model_configs.get(model_key, model_configs["medgemma-27b"])
             hf_model_id = config["hf_model_id"]
             use_deepspeed = config["use_deepspeed"]
-            
+
             print(f"Training {hf_model_id}")
             print(f"GPUs available: {torch.cuda.device_count()}")
             print(f"Using DeepSpeed: {use_deepspeed}")
-            
+
             # Load tokenizer
             tokenizer = AutoTokenizer.from_pretrained(
                 hf_model_id,
@@ -192,7 +193,7 @@ if MODAL_AVAILABLE:
             )
             if tokenizer.pad_token is None:
                 tokenizer.pad_token = tokenizer.eos_token
-            
+
             # Load model
             model = AutoModelForCausalLM.from_pretrained(
                 hf_model_id,
@@ -200,7 +201,7 @@ if MODAL_AVAILABLE:
                 device_map="auto" if not use_deepspeed else None,
                 trust_remote_code=True,
             )
-            
+
             # Configure LoRA
             lora_config = LoraConfig(
                 task_type=TaskType.CAUSAL_LM,
@@ -213,10 +214,10 @@ if MODAL_AVAILABLE:
                 ],
                 bias="none",
             )
-            
+
             model = get_peft_model(model, lora_config)
             model.print_trainable_parameters()
-            
+
             # DeepSpeed configuration for 27B model
             ds_config = None
             if use_deepspeed:
@@ -239,7 +240,7 @@ if MODAL_AVAILABLE:
                     "gradient_clipping": 1.0,
                     "train_micro_batch_size_per_gpu": batch_size,
                 }
-            
+
             # Training arguments
             training_args = TrainingArguments(
                 output_dir="/checkpoints/training",
@@ -263,31 +264,63 @@ if MODAL_AVAILABLE:
                 deepspeed=ds_config,
                 report_to=["mlflow"] if mlflow_tracking_uri else [],
             )
-            
+
             # Set up MLflow
             if mlflow_tracking_uri:
                 import mlflow
                 mlflow.set_tracking_uri(mlflow_tracking_uri)
                 if experiment_name:
                     mlflow.set_experiment(experiment_name)
-            
-            # Create trainer
+
+            # Load training and evaluation datasets
+            train_dataset = None
+            eval_dataset = None
+
+            if train_data_path:
+                print(f"Loading training data from: {train_data_path}")
+                train_dataset = self._load_dataset(train_data_path, tokenizer)
+                print(f"Loaded {len(train_dataset)} training samples")
+            else:
+                raise ValueError(
+                    "train_data_path is required. Download data first with:\n"
+                    "  modal run medai_compass/modal/data_download.py\n"
+                    "Then specify: train_data_path='/data/combined_medical/train.jsonl'"
+                )
+
+            if eval_data_path:
+                print(f"Loading evaluation data from: {eval_data_path}")
+                eval_dataset = self._load_dataset(eval_data_path, tokenizer)
+                print(f"Loaded {len(eval_dataset)} evaluation samples")
+
+            # Create trainer with datasets
             trainer = Trainer(
                 model=model,
                 args=training_args,
-                # train_dataset=train_dataset,  # Load from train_data_path
-                # eval_dataset=eval_dataset,    # Load from eval_data_path
+                train_dataset=train_dataset,
+                eval_dataset=eval_dataset,
                 tokenizer=tokenizer,
             )
-            
-            # Note: In production, load actual datasets from train_data_path/eval_data_path
-            # For now, return configuration for validation
-            
+
+            # Run training
+            print("Starting training...")
+            train_result = trainer.train()
+
+            # Save final model
+            print("Saving final model...")
+            trainer.save_model("/checkpoints/final")
+            tokenizer.save_pretrained("/checkpoints/final")
+
+            # Merge LoRA weights for inference (optional export)
+            print("Merging LoRA weights for export...")
+            merged_model = model.merge_and_unload()
+            merged_model.save_pretrained("/checkpoints/final-merged")
+            tokenizer.save_pretrained("/checkpoints/final-merged")
+
             # Commit checkpoints
             checkpoints.commit()
-            
+
             return {
-                "status": "configured",
+                "status": "completed",
                 "model": hf_model_id,
                 "gpus": torch.cuda.device_count(),
                 "deepspeed": use_deepspeed,
@@ -299,13 +332,140 @@ if MODAL_AVAILABLE:
                     "lora_r": lora_r,
                     "lora_alpha": lora_alpha,
                 },
+                "training_loss": train_result.training_loss,
+                "global_step": train_result.global_step,
+                "checkpoint_path": "/checkpoints/final",
+                "merged_model_path": "/checkpoints/final-merged",
             }
-        
+
+        def _load_dataset(self, data_path: str, tokenizer):
+            """
+            Load and preprocess dataset for training.
+
+            Supports:
+            - JSONL files with instruction/input/output format
+            - Parquet files
+            - HuggingFace datasets (hf://dataset_name)
+
+            Args:
+                data_path: Path to data file
+                tokenizer: Tokenizer for preprocessing
+
+            Returns:
+                Preprocessed HuggingFace Dataset
+            """
+            import json
+
+            from datasets import Dataset, load_dataset
+
+            max_length = 4096
+
+            # System prompt for medical AI
+            system_prompt = (
+                "You are a medical AI assistant trained to help healthcare providers "
+                "with clinical reasoning and diagnosis. Provide evidence-based, "
+                "accurate medical information."
+            )
+
+            # Load raw data
+            if data_path.startswith("hf://"):
+                dataset = load_dataset(data_path[5:], split="train")
+            elif data_path.endswith(".jsonl") or data_path.endswith(".json"):
+                data = []
+                with open(data_path) as f:
+                    for line in f:
+                        if line.strip():
+                            data.append(json.loads(line))
+                dataset = Dataset.from_list(data)
+            elif data_path.endswith(".parquet"):
+                dataset = load_dataset("parquet", data_files=data_path, split="train")
+            else:
+                raise ValueError(f"Unsupported data format: {data_path}")
+
+            def format_and_tokenize(examples):
+                """Format examples and tokenize."""
+                texts = []
+
+                # Get number of examples in batch
+                keys = list(examples.keys())
+                if not keys:
+                    return {"input_ids": [], "attention_mask": [], "labels": []}
+
+                n_examples = len(examples[keys[0]])
+
+                for i in range(n_examples):
+                    # Get fields with fallbacks
+                    instruction = (
+                        examples.get("instruction", [""] * n_examples)[i] or
+                        examples.get("question", [""] * n_examples)[i] or ""
+                    )
+                    input_text = (
+                        examples.get("input", [""] * n_examples)[i] or
+                        examples.get("context", [""] * n_examples)[i] or ""
+                    )
+                    output = (
+                        examples.get("output", [""] * n_examples)[i] or
+                        examples.get("answer", [""] * n_examples)[i] or ""
+                    )
+
+                    # Build conversation format
+                    if input_text:
+                        user_content = f"{instruction}\n\n{input_text}"
+                    else:
+                        user_content = instruction
+
+                    messages = [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_content},
+                        {"role": "assistant", "content": str(output)},
+                    ]
+
+                    # Apply chat template
+                    try:
+                        text = tokenizer.apply_chat_template(
+                            messages,
+                            tokenize=False,
+                            add_generation_prompt=False,
+                        )
+                    except Exception:
+                        # Fallback to simple format
+                        text = f"<system>{system_prompt}</system>\n"
+                        text += f"<user>{user_content}</user>\n"
+                        text += f"<assistant>{output}</assistant>"
+
+                    texts.append(text)
+
+                # Tokenize
+                tokenized = tokenizer(
+                    texts,
+                    max_length=max_length,
+                    padding="max_length",
+                    truncation=True,
+                )
+
+                # Set labels (same as input_ids for causal LM)
+                tokenized["labels"] = tokenized["input_ids"].copy()
+
+                return tokenized
+
+            # Apply preprocessing
+            processed = dataset.map(
+                format_and_tokenize,
+                batched=True,
+                remove_columns=dataset.column_names,
+                desc="Tokenizing dataset",
+            )
+
+            # Set format for PyTorch
+            processed.set_format("torch")
+
+            return processed
+
         @modal.method()
-        def get_gpu_info(self) -> Dict[str, Any]:
+        def get_gpu_info(self) -> dict[str, Any]:
             """Get GPU information."""
             import torch
-            
+
             gpus = []
             if torch.cuda.is_available():
                 for i in range(torch.cuda.device_count()):
@@ -316,66 +476,77 @@ if MODAL_AVAILABLE:
                         "total_memory_gb": props.total_memory / 1e9,
                         "compute_capability": f"{props.major}.{props.minor}",
                     })
-            
+
             return {
                 "cuda_available": torch.cuda.is_available(),
                 "gpu_count": torch.cuda.device_count(),
                 "gpus": gpus,
             }
-    
+
     # Single GPU variant for 4B model
     @app.cls(
         image=training_image,
-        gpu=modal.gpu.H100(count=1),  # 1x H100 for 4B training/inference
+        gpu="H100",  # 1x H100 for 4B training/inference
         volumes={
             "/root/.cache/huggingface": model_cache,
             "/data": training_data,
             "/checkpoints": checkpoints,
         },
         timeout=86400,
-        container_idle_timeout=300,
+        scaledown_window=300,
         secrets=[
-            modal.Secret.from_name("huggingface-secret", required=False),
+            modal.Secret.from_name("huggingface-secret"),
         ],
     )
     class MedGemma4BTrainer:
         """Single-GPU trainer for MedGemma 4B model."""
-        
+
         @modal.enter()
         def setup(self):
             """Initialize on container startup."""
             import torch
             print(f"GPU: {torch.cuda.get_device_name(0)}")
             model_cache.commit()
-        
+
         @modal.method()
         def train(
             self,
-            train_data_path: Optional[str] = None,
+            train_data_path: str | None = None,
+            eval_data_path: str | None = None,
             max_steps: int = 10000,
             batch_size: int = 4,
             learning_rate: float = 2e-4,
             lora_r: int = 16,
             lora_alpha: int = 32,
-        ) -> Dict[str, Any]:
+            gradient_accumulation_steps: int = 4,
+            save_steps: int = 500,
+        ) -> dict[str, Any]:
             """Train MedGemma 4B model on single H100."""
             import torch
-            from transformers import AutoModelForCausalLM, AutoTokenizer
-            from peft import LoraConfig, get_peft_model, TaskType
-            
+            from peft import LoraConfig, TaskType, get_peft_model
+            from transformers import (
+                AutoModelForCausalLM,
+                AutoTokenizer,
+                Trainer,
+                TrainingArguments,
+            )
+
             hf_model_id = "google/medgemma-4b-it"
-            
+
             print(f"Training {hf_model_id} on {torch.cuda.get_device_name(0)}")
-            
-            # Load model
+
+            # Load tokenizer and model
             tokenizer = AutoTokenizer.from_pretrained(hf_model_id, trust_remote_code=True)
+            if tokenizer.pad_token is None:
+                tokenizer.pad_token = tokenizer.eos_token
+
             model = AutoModelForCausalLM.from_pretrained(
                 hf_model_id,
                 torch_dtype=torch.bfloat16,
                 device_map="auto",
                 trust_remote_code=True,
             )
-            
+
             # Configure LoRA
             lora_config = LoraConfig(
                 task_type=TaskType.CAUSAL_LM,
@@ -385,30 +556,179 @@ if MODAL_AVAILABLE:
                 target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
                 bias="none",
             )
-            
+
             model = get_peft_model(model, lora_config)
             model.print_trainable_parameters()
-            
+
+            # Load datasets
+            if not train_data_path:
+                raise ValueError(
+                    "train_data_path is required. Download data first with:\n"
+                    "  modal run medai_compass/modal/data_download.py\n"
+                    "Then specify: train_data_path='/data/combined_medical/train.jsonl'"
+                )
+
+            train_dataset = self._load_dataset(train_data_path, tokenizer)
+            print(f"Loaded {len(train_dataset)} training samples")
+
+            eval_dataset = None
+            if eval_data_path:
+                eval_dataset = self._load_dataset(eval_data_path, tokenizer)
+                print(f"Loaded {len(eval_dataset)} evaluation samples")
+
+            # Training arguments
+            training_args = TrainingArguments(
+                output_dir="/checkpoints/training-4b",
+                max_steps=max_steps,
+                per_device_train_batch_size=batch_size,
+                per_device_eval_batch_size=batch_size,
+                learning_rate=learning_rate,
+                warmup_ratio=0.1,
+                weight_decay=0.01,
+                gradient_accumulation_steps=gradient_accumulation_steps,
+                bf16=True,
+                logging_steps=10,
+                save_steps=save_steps,
+                save_strategy="steps",
+                eval_strategy="steps" if eval_dataset else "no",
+                eval_steps=save_steps if eval_dataset else None,
+                save_total_limit=3,
+                load_best_model_at_end=True if eval_dataset else False,
+                metric_for_best_model="loss" if eval_dataset else None,
+                greater_is_better=False if eval_dataset else None,
+                gradient_checkpointing=True,
+                report_to=[],
+            )
+
+            # Create trainer
+            trainer = Trainer(
+                model=model,
+                args=training_args,
+                train_dataset=train_dataset,
+                eval_dataset=eval_dataset,
+                processing_class=tokenizer,  # renamed from 'tokenizer' in newer transformers
+            )
+
+            # Run training
+            print("Starting training...")
+            train_result = trainer.train()
+
+            # Save final model
+            print("Saving final model...")
+            trainer.save_model("/checkpoints/final-4b")
+            tokenizer.save_pretrained("/checkpoints/final-4b")
+
+            # Merge LoRA weights
+            print("Merging LoRA weights...")
+            merged_model = model.merge_and_unload()
+            merged_model.save_pretrained("/checkpoints/final-merged-4b")
+            tokenizer.save_pretrained("/checkpoints/final-merged-4b")
+
             checkpoints.commit()
-            
+
             return {
-                "status": "configured",
+                "status": "completed",
                 "model": hf_model_id,
                 "gpu": torch.cuda.get_device_name(0),
                 "trainable_params": sum(p.numel() for p in model.parameters() if p.requires_grad),
+                "training_loss": train_result.training_loss,
+                "global_step": train_result.global_step,
+                "checkpoint_path": "/checkpoints/final-4b",
+                "merged_model_path": "/checkpoints/final-merged-4b",
             }
-    
+
+        def _load_dataset(self, data_path: str, tokenizer):
+            """Load and preprocess dataset (shared implementation)."""
+            import json
+
+            from datasets import Dataset
+
+            max_length = 4096
+            system_prompt = (
+                "You are a medical AI assistant trained to help healthcare providers "
+                "with clinical reasoning and diagnosis."
+            )
+
+            # Load raw data
+            data = []
+            with open(data_path) as f:
+                for line in f:
+                    if line.strip():
+                        data.append(json.loads(line))
+            dataset = Dataset.from_list(data)
+
+            def format_and_tokenize(examples):
+                texts = []
+                keys = list(examples.keys())
+                if not keys:
+                    return {"input_ids": [], "attention_mask": [], "labels": []}
+
+                n_examples = len(examples[keys[0]])
+
+                for i in range(n_examples):
+                    instruction = (
+                        examples.get("instruction", [""] * n_examples)[i] or
+                        examples.get("question", [""] * n_examples)[i] or ""
+                    )
+                    input_text = (
+                        examples.get("input", [""] * n_examples)[i] or ""
+                    )
+                    output = (
+                        examples.get("output", [""] * n_examples)[i] or
+                        examples.get("answer", [""] * n_examples)[i] or ""
+                    )
+
+                    if input_text:
+                        user_content = f"{instruction}\n\n{input_text}"
+                    else:
+                        user_content = instruction
+
+                    messages = [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_content},
+                        {"role": "assistant", "content": str(output)},
+                    ]
+
+                    try:
+                        text = tokenizer.apply_chat_template(
+                            messages, tokenize=False, add_generation_prompt=False
+                        )
+                    except Exception:
+                        text = f"<system>{system_prompt}</system>\n"
+                        text += f"<user>{user_content}</user>\n"
+                        text += f"<assistant>{output}</assistant>"
+
+                    texts.append(text)
+
+                tokenized = tokenizer(
+                    texts, max_length=max_length, padding="max_length", truncation=True
+                )
+                tokenized["labels"] = tokenized["input_ids"].copy()
+                # Add token_type_ids (zeros) required by Gemma3
+                batch_size = len(tokenized["input_ids"])
+                seq_len = len(tokenized["input_ids"][0])
+                tokenized["token_type_ids"] = [[0] * seq_len for _ in range(batch_size)]
+                return tokenized
+
+            processed = dataset.map(
+                format_and_tokenize,
+                batched=True,
+                remove_columns=dataset.column_names,
+                desc="Tokenizing dataset",
+            )
+            processed.set_format("torch")
+            return processed
+
     # =============================================================================
     # H100 Optimization Verification Functions
     # =============================================================================
 
     @app.function(
-        image=training_image,
-        gpu=modal.gpu.H100(count=1),
+        image=verify_image,
+        gpu="H100",
         timeout=600,
-        secrets=[modal.Secret.from_name("huggingface-secret", required=False)],
     )
-    def verify_h100_optimizations() -> Dict[str, Any]:
+    def verify_h100_optimizations() -> dict[str, Any]:
         """
         Verify H100-specific optimizations are working on Modal GPU.
 
@@ -422,8 +742,9 @@ if MODAL_AVAILABLE:
         Returns:
             Dict with optimization status and benchmarks
         """
-        import torch
         import time
+
+        import torch
 
         results = {
             "gpu_info": {},
@@ -527,17 +848,17 @@ if MODAL_AVAILABLE:
 
     @app.function(
         image=training_image,
-        gpu=modal.gpu.H100(count=1),
+        gpu="H100",
         volumes={"/root/.cache/huggingface": model_cache},
         timeout=1200,
-        secrets=[modal.Secret.from_name("huggingface-secret", required=False)],
+        secrets=[modal.Secret.from_name("huggingface-secret")],
     )
     def benchmark_inference_throughput(
         model_name: str = "medgemma-4b",
-        batch_sizes: List[int] = [1, 2, 4, 8],
+        batch_sizes: list[int] = [1, 2, 4, 8],
         input_length: int = 256,
         output_length: int = 128,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Benchmark inference throughput on H100 with various batch sizes.
 
@@ -546,8 +867,9 @@ if MODAL_AVAILABLE:
         Returns:
             Dict with throughput measurements per batch size
         """
-        import torch
         import time
+
+        import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
         hf_model_id = "google/medgemma-4b-it" if "4b" in model_name else "google/medgemma-27b-it"
@@ -641,8 +963,10 @@ if MODAL_AVAILABLE:
     @app.local_entrypoint()
     def main(
         model_name: str = "medgemma-27b",
-        max_steps: int = 100,
-        dry_run: bool = True,
+        max_steps: int = 1000,
+        train_data: str = "/data/combined_medical/train.jsonl",
+        eval_data: str | None = "/data/combined_medical/eval.jsonl",
+        dry_run: bool = False,
         verify_optimizations: bool = False,
         benchmark: bool = False,
     ):
@@ -655,17 +979,23 @@ if MODAL_AVAILABLE:
             # Benchmark inference
             modal run medai_compass/modal/training_app.py --benchmark
 
-            # Run training
+            # Run training (4B model)
             modal run medai_compass/modal/training_app.py --model-name medgemma-4b
+
+            # Run training (27B model with 8x H100)
+            modal run medai_compass/modal/training_app.py --model-name medgemma-27b
+
+            # Dry run (configure only)
+            modal run medai_compass/modal/training_app.py --dry-run
         """
         if verify_optimizations:
             print("Verifying H100 optimizations on Modal...")
             result = verify_h100_optimizations.remote()
             print(f"\nGPU Info: {result['gpu_info']}")
-            print(f"\nOptimizations Available:")
+            print("\nOptimizations Available:")
             for name, status in result['optimizations'].items():
                 print(f"  {name}: {status}")
-            print(f"\nBenchmarks:")
+            print("\nBenchmarks:")
             for name, value in result['benchmarks'].items():
                 print(f"  {name}: {value:.2f}")
             return
@@ -675,7 +1005,7 @@ if MODAL_AVAILABLE:
             result = benchmark_inference_throughput.remote(model_name=model_name)
             print(f"\nModel: {result['model']}")
             print(f"GPU: {result['gpu']}")
-            print(f"\nResults by attention implementation:")
+            print("\nResults by attention implementation:")
             for impl, batches in result['batch_results'].items():
                 print(f"\n  {impl}:")
                 for batch_key, metrics in batches.items():
@@ -686,23 +1016,43 @@ if MODAL_AVAILABLE:
             return
 
         print(f"Starting training for {model_name}")
+        print(f"Training data: {train_data}")
+        print(f"Evaluation data: {eval_data}")
+        print(f"Max steps: {max_steps}")
+
+        if dry_run:
+            print("\n[DRY RUN] Would train with above configuration.")
+            print("Remove --dry-run to start actual training.")
+            return
 
         if "27b" in model_name.lower():
             trainer = MedGemmaTrainer()
 
             # Get GPU info first
             gpu_info = trainer.get_gpu_info.remote()
-            print(f"GPU Info: {gpu_info}")
+            print(f"\nGPU Info: {gpu_info}")
 
-            if not dry_run:
-                result = trainer.train.remote(
-                    model_name=model_name,
-                    max_steps=max_steps,
-                )
-                print(f"Training result: {result}")
+            print("\nStarting distributed training on 8x H100...")
+            result = trainer.train.remote(
+                model_name=model_name,
+                train_data_path=train_data,
+                eval_data_path=eval_data,
+                max_steps=max_steps,
+            )
+            print("\nTraining completed!")
+            print(f"Status: {result['status']}")
+            print(f"Training loss: {result.get('training_loss', 'N/A')}")
+            print(f"Checkpoint: {result.get('checkpoint_path', 'N/A')}")
         else:
             trainer = MedGemma4BTrainer()
 
-            if not dry_run:
-                result = trainer.train.remote(max_steps=max_steps)
-                print(f"Training result: {result}")
+            print("\nStarting training on single H100...")
+            result = trainer.train.remote(
+                train_data_path=train_data,
+                eval_data_path=eval_data,
+                max_steps=max_steps,
+            )
+            print("\nTraining completed!")
+            print(f"Status: {result['status']}")
+            print(f"Training loss: {result.get('training_loss', 'N/A')}")
+            print(f"Checkpoint: {result.get('checkpoint_path', 'N/A')}")
