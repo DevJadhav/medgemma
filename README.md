@@ -569,7 +569,7 @@ Apache 2.0 License. See [LICENSE](LICENSE) for details.
 | Ray Actors & Workflows | ✅ Complete |
 | Pipeline CLI | ✅ Complete |
 
-### New in Latest Release (v2.0)
+### New in Latest Release
 
 **Security & Compliance**:
 - **Enhanced PHI Detection**: 30+ patterns with context-aware detection
