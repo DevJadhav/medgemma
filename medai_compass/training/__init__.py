@@ -56,6 +56,27 @@ from medai_compass.training.callbacks import (
     create_default_callbacks,
 )
 
+# H100 Optimized Training Components
+from medai_compass.training.optimized import (
+    # Configuration
+    H100TrainingConfig,
+    # Ray Data Integration
+    RayDataDICOMLoader,
+    RayDICOMDataset,
+    # FSDP Training
+    FSDPTrainer,
+    # Optimized Trainer
+    OptimizedTrainer,
+    # Throughput Tracking
+    ThroughputTracker,
+    # DICOM Training Pipeline
+    DICOMTrainingPipeline,
+    # H100 Optimizations
+    H100Optimizer,
+    # End-to-End Pipeline
+    OptimizedTrainingPipeline,
+)
+
 __all__ = [
     # Core trainer
     "MedGemmaTrainer",
@@ -86,6 +107,16 @@ __all__ = [
     "CheckpointCallback",
     "CompositeCallback",
     "create_default_callbacks",
+    # H100 Optimized Training
+    "H100TrainingConfig",
+    "RayDataDICOMLoader",
+    "RayDICOMDataset",
+    "FSDPTrainer",
+    "OptimizedTrainer",
+    "ThroughputTracker",
+    "DICOMTrainingPipeline",
+    "H100Optimizer",
+    "OptimizedTrainingPipeline",
 ]
 
 # Model profile constants for easy access

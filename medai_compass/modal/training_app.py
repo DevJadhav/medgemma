@@ -398,23 +398,302 @@ if MODAL_AVAILABLE:
                 "trainable_params": sum(p.numel() for p in model.parameters() if p.requires_grad),
             }
     
+    # =============================================================================
+    # H100 Optimization Verification Functions
+    # =============================================================================
+
+    @app.function(
+        image=training_image,
+        gpu=modal.gpu.H100(count=1),
+        timeout=600,
+        secrets=[modal.Secret.from_name("huggingface-secret", required=False)],
+    )
+    def verify_h100_optimizations() -> Dict[str, Any]:
+        """
+        Verify H100-specific optimizations are working on Modal GPU.
+
+        This function validates:
+        - Flash Attention 2 availability
+        - FP8 support (Transformer Engine)
+        - CUDA graphs capability
+        - Memory bandwidth
+        - GPU compute capability
+
+        Returns:
+            Dict with optimization status and benchmarks
+        """
+        import torch
+        import time
+
+        results = {
+            "gpu_info": {},
+            "optimizations": {},
+            "benchmarks": {},
+        }
+
+        # GPU Info
+        if torch.cuda.is_available():
+            props = torch.cuda.get_device_properties(0)
+            results["gpu_info"] = {
+                "name": props.name,
+                "compute_capability": f"{props.major}.{props.minor}",
+                "total_memory_gb": props.total_memory / 1e9,
+                "multiprocessor_count": props.multi_processor_count,
+                "is_h100": "H100" in props.name,
+            }
+
+        # Check Flash Attention
+        try:
+            import flash_attn
+            results["optimizations"]["flash_attention_2"] = {
+                "available": True,
+                "version": flash_attn.__version__,
+            }
+        except ImportError:
+            results["optimizations"]["flash_attention_2"] = {
+                "available": False,
+                "reason": "flash_attn not installed",
+            }
+
+        # Check Transformer Engine (FP8)
+        try:
+            import transformer_engine
+            results["optimizations"]["transformer_engine_fp8"] = {
+                "available": True,
+                "version": transformer_engine.__version__,
+            }
+        except ImportError:
+            results["optimizations"]["transformer_engine_fp8"] = {
+                "available": False,
+                "reason": "transformer_engine not installed",
+            }
+
+        # Check CUDA Graphs
+        try:
+            stream = torch.cuda.Stream()
+            graph = torch.cuda.CUDAGraph()
+            results["optimizations"]["cuda_graphs"] = {
+                "available": True,
+            }
+        except Exception as e:
+            results["optimizations"]["cuda_graphs"] = {
+                "available": False,
+                "reason": str(e),
+            }
+
+        # Memory bandwidth benchmark
+        if torch.cuda.is_available():
+            size = 1024 * 1024 * 256  # 1GB
+            x = torch.randn(size, device="cuda", dtype=torch.bfloat16)
+
+            torch.cuda.synchronize()
+            start = time.perf_counter()
+            y = x.clone()
+            torch.cuda.synchronize()
+            elapsed = time.perf_counter() - start
+
+            bandwidth_gbps = (size * 4) / elapsed / 1e9  # 2 bytes per bf16 * 2 (read+write)
+            results["benchmarks"]["memory_bandwidth_gbps"] = bandwidth_gbps
+
+            del x, y
+            torch.cuda.empty_cache()
+
+        # Matmul benchmark
+        if torch.cuda.is_available():
+            m, n, k = 4096, 4096, 4096
+            a = torch.randn(m, k, device="cuda", dtype=torch.bfloat16)
+            b = torch.randn(k, n, device="cuda", dtype=torch.bfloat16)
+
+            # Warmup
+            for _ in range(10):
+                torch.matmul(a, b)
+
+            torch.cuda.synchronize()
+            start = time.perf_counter()
+            iterations = 100
+            for _ in range(iterations):
+                torch.matmul(a, b)
+            torch.cuda.synchronize()
+            elapsed = time.perf_counter() - start
+
+            flops = 2 * m * n * k * iterations
+            tflops = flops / elapsed / 1e12
+            results["benchmarks"]["matmul_tflops"] = tflops
+
+            del a, b
+            torch.cuda.empty_cache()
+
+        return results
+
+    @app.function(
+        image=training_image,
+        gpu=modal.gpu.H100(count=1),
+        volumes={"/root/.cache/huggingface": model_cache},
+        timeout=1200,
+        secrets=[modal.Secret.from_name("huggingface-secret", required=False)],
+    )
+    def benchmark_inference_throughput(
+        model_name: str = "medgemma-4b",
+        batch_sizes: List[int] = [1, 2, 4, 8],
+        input_length: int = 256,
+        output_length: int = 128,
+    ) -> Dict[str, Any]:
+        """
+        Benchmark inference throughput on H100 with various batch sizes.
+
+        Tests Flash Attention 2 and compares with SDPA.
+
+        Returns:
+            Dict with throughput measurements per batch size
+        """
+        import torch
+        import time
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        hf_model_id = "google/medgemma-4b-it" if "4b" in model_name else "google/medgemma-27b-it"
+
+        # Load model with Flash Attention
+        tokenizer = AutoTokenizer.from_pretrained(hf_model_id, trust_remote_code=True)
+
+        results = {
+            "model": hf_model_id,
+            "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
+            "batch_results": {},
+        }
+
+        for attn_impl in ["flash_attention_2", "sdpa"]:
+            try:
+                model = AutoModelForCausalLM.from_pretrained(
+                    hf_model_id,
+                    torch_dtype=torch.bfloat16,
+                    device_map="auto",
+                    attn_implementation=attn_impl,
+                    trust_remote_code=True,
+                )
+            except Exception as e:
+                results["batch_results"][attn_impl] = {"error": str(e)}
+                continue
+
+            results["batch_results"][attn_impl] = {}
+
+            for batch_size in batch_sizes:
+                # Create input
+                input_text = "What are the symptoms of pneumonia? " * (input_length // 10)
+                inputs = tokenizer(
+                    [input_text] * batch_size,
+                    return_tensors="pt",
+                    padding=True,
+                    truncation=True,
+                    max_length=input_length,
+                )
+                inputs = {k: v.to(model.device) for k, v in inputs.items()}
+
+                # Warmup
+                with torch.inference_mode():
+                    for _ in range(3):
+                        model.generate(**inputs, max_new_tokens=32, do_sample=False)
+
+                # Benchmark
+                torch.cuda.synchronize()
+                start = time.perf_counter()
+
+                iterations = 10
+                total_tokens = 0
+                with torch.inference_mode():
+                    for _ in range(iterations):
+                        outputs = model.generate(
+                            **inputs,
+                            max_new_tokens=output_length,
+                            do_sample=False,
+                            pad_token_id=tokenizer.eos_token_id,
+                        )
+                        total_tokens += outputs.numel()
+
+                torch.cuda.synchronize()
+                elapsed = time.perf_counter() - start
+
+                tokens_per_second = total_tokens / elapsed
+                latency_ms = (elapsed / iterations) * 1000
+
+                results["batch_results"][attn_impl][f"batch_{batch_size}"] = {
+                    "tokens_per_second": tokens_per_second,
+                    "latency_ms": latency_ms,
+                    "throughput_improvement": None,
+                }
+
+            del model
+            torch.cuda.empty_cache()
+
+        # Calculate improvement
+        if "flash_attention_2" in results["batch_results"] and "sdpa" in results["batch_results"]:
+            for batch_key in results["batch_results"]["flash_attention_2"]:
+                if batch_key in results["batch_results"]["sdpa"]:
+                    fa_tps = results["batch_results"]["flash_attention_2"][batch_key]["tokens_per_second"]
+                    sdpa_tps = results["batch_results"]["sdpa"][batch_key]["tokens_per_second"]
+                    improvement = (fa_tps - sdpa_tps) / sdpa_tps * 100
+                    results["batch_results"]["flash_attention_2"][batch_key]["throughput_improvement"] = f"{improvement:.1f}%"
+
+        model_cache.commit()
+
+        return results
+
     # CLI entrypoint
     @app.local_entrypoint()
     def main(
         model_name: str = "medgemma-27b",
         max_steps: int = 100,
         dry_run: bool = True,
+        verify_optimizations: bool = False,
+        benchmark: bool = False,
     ):
-        """Run training from CLI."""
+        """Run training or benchmarks from CLI.
+
+        Examples:
+            # Verify H100 optimizations
+            modal run medai_compass/modal/training_app.py --verify-optimizations
+
+            # Benchmark inference
+            modal run medai_compass/modal/training_app.py --benchmark
+
+            # Run training
+            modal run medai_compass/modal/training_app.py --model-name medgemma-4b
+        """
+        if verify_optimizations:
+            print("Verifying H100 optimizations on Modal...")
+            result = verify_h100_optimizations.remote()
+            print(f"\nGPU Info: {result['gpu_info']}")
+            print(f"\nOptimizations Available:")
+            for name, status in result['optimizations'].items():
+                print(f"  {name}: {status}")
+            print(f"\nBenchmarks:")
+            for name, value in result['benchmarks'].items():
+                print(f"  {name}: {value:.2f}")
+            return
+
+        if benchmark:
+            print("Running inference throughput benchmark on H100...")
+            result = benchmark_inference_throughput.remote(model_name=model_name)
+            print(f"\nModel: {result['model']}")
+            print(f"GPU: {result['gpu']}")
+            print(f"\nResults by attention implementation:")
+            for impl, batches in result['batch_results'].items():
+                print(f"\n  {impl}:")
+                for batch_key, metrics in batches.items():
+                    if isinstance(metrics, dict) and "tokens_per_second" in metrics:
+                        print(f"    {batch_key}: {metrics['tokens_per_second']:.1f} tokens/s, "
+                              f"latency: {metrics['latency_ms']:.1f}ms"
+                              f"{' (+' + metrics['throughput_improvement'] + ')' if metrics.get('throughput_improvement') else ''}")
+            return
+
         print(f"Starting training for {model_name}")
-        
+
         if "27b" in model_name.lower():
             trainer = MedGemmaTrainer()
-            
+
             # Get GPU info first
             gpu_info = trainer.get_gpu_info.remote()
             print(f"GPU Info: {gpu_info}")
-            
+
             if not dry_run:
                 result = trainer.train.remote(
                     model_name=model_name,
@@ -423,7 +702,7 @@ if MODAL_AVAILABLE:
                 print(f"Training result: {result}")
         else:
             trainer = MedGemma4BTrainer()
-            
+
             if not dry_run:
                 result = trainer.train.remote(max_steps=max_steps)
                 print(f"Training result: {result}")
