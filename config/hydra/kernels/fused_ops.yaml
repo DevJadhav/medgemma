@@ -1,0 +1,59 @@
+# Fused Kernel Operations Configuration
+# Memory-efficient fused operations for training
+
+# @package _global_
+kernels:
+  # Fused Cross-Entropy Loss
+  fused_cross_entropy:
+    enabled: true
+    # Memory reduction: O(B*S*V) -> O(B*S)
+    reduction: mean  # mean, sum, none
+    ignore_index: -100
+    label_smoothing: 0.0
+    # Soft capping for logit stability
+    soft_cap:
+      enabled: true
+      value: 30.0
+
+  # Fused RoPE (Rotary Position Embeddings)
+  fused_rope:
+    enabled: true
+    # ~15% speedup over unfused
+    base: 10000
+    scaling_factor: 1.0
+
+  # Fused SwiGLU Activation
+  fused_swiglu:
+    enabled: true
+    # swish(x * w) ⊗ v
+    # ~10% speedup
+
+  # Fused RMSNorm
+  fused_rmsnorm:
+    enabled: true
+    eps: 1e-6
+
+  # Fused Adam/AdamW
+  fused_optimizer:
+    enabled: true
+    # Uses CUDA kernels for parameter updates
+    use_fused_adam: true
+
+  # Flash Attention
+  flash_attention:
+    enabled: true
+    version: 2
+    # Causal mask
+    causal: true
+    # Dropout during training
+    dropout: 0.0
+    # Softmax scale
+    softmax_scale: null  # auto
+
+  # Memory optimization
+  memory:
+    # Gradient checkpointing with selective recompute
+    gradient_checkpointing: true
+    checkpoint_every_n_layers: 1
+    # Activation offloading
+    activation_offloading: false

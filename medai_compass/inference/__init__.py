@@ -43,6 +43,19 @@ from .strategy_selector import (
     auto_select_inference_backend,
 )
 
+# Ray Serve Production Deployment
+from .ray_serve_deployment import (
+    RayServeConfig,
+    GenerationRequest,
+    GenerationResponse,
+    MetricsCollector,
+    MedGemmaModelWrapper,
+    RayServeDeploymentManager,
+    create_medgemma_deployment,
+    deploy_medgemma,
+    deploy_medgemma_from_hydra,
+)
+
 __all__ = [
     # Configuration
     "H100InferenceConfig",
@@ -73,4 +86,14 @@ __all__ = [
     "BackendType",
     "select_inference_backend",
     "auto_select_inference_backend",
+    # Ray Serve Production Deployment
+    "RayServeConfig",
+    "GenerationRequest",
+    "GenerationResponse",
+    "MetricsCollector",
+    "MedGemmaModelWrapper",
+    "RayServeDeploymentManager",
+    "create_medgemma_deployment",
+    "deploy_medgemma",
+    "deploy_medgemma_from_hydra",
 ]

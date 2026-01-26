@@ -1,0 +1,57 @@
+# Production Experiment Configuration
+# Optimized settings for production training runs
+
+# @package _global_
+defaults:
+  - /model: medgemma_27b
+  - /training: qlora
+  - /training/deepspeed: zero3_offload
+  - /compute: modal_h100
+  - /data: combined
+  - /tuning: asha
+
+# Override project settings
+project:
+  name: medgemma-production-v1
+  output_dir: /checkpoints/production
+  logging_dir: /logs/production
+  experiment_tracking:
+    enabled: true
+    backend: mlflow
+    project_name: medgemma-production
+
+# Production training overrides
+training:
+  lora:
+    r: 64
+    lora_alpha: 128
+    lora_dropout: 0.05
+
+  args:
+    num_train_epochs: 3
+    per_device_train_batch_size: 2
+    gradient_accumulation_steps: 8
+    learning_rate: 1e-4
+
+    # More frequent saves for production
+    save_steps: 250
+    save_total_limit: 5
+    eval_steps: 250
+
+    # Better logging
+    logging_steps: 5
+    report_to:
+      - tensorboard
+      - mlflow
+
+# Use more HPO trials for production
+tuning:
+  num_samples: 100
+  max_concurrent_trials: 8
+
+# Quality gates
+quality_gates:
+  medqa_accuracy: 0.70
+  pubmedqa_accuracy: 0.75
+  safety_score: 0.95
+  hallucination_rate: 0.05

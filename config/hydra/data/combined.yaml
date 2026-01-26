@@ -1,0 +1,69 @@
+# @package data
+# Combined Medical Datasets Configuration
+# Uses multiple medical QA datasets for comprehensive training
+
+name: combined_medical
+path: /data/combined_medical
+
+# Datasets to combine
+datasets:
+  - name: medqa
+    source: medalpaca/medical_meadow_medqa
+    split: train
+    weight: 1.0
+  - name: pubmedqa
+    source: bigbio/pubmed_qa
+    split: train
+    subset: pqa_labeled
+    weight: 1.0
+  - name: medmcqa
+    source: openlifescienceai/medmcqa
+    split: train
+    weight: 0.5  # Down-weight due to size
+
+# Preprocessing
+preprocessing:
+  max_length: 2048
+  truncation: true
+  padding: max_length
+  return_tensors: pt
+
+# Format template
+template: |
+  ### Instruction:
+  {instruction}
+
+  ### Input:
+  {input}
+
+  ### Response:
+  {output}
+
+# Column mappings for different dataset formats
+column_mappings:
+  medqa:
+    instruction: question
+    input: options
+    output: answer
+  pubmedqa:
+    instruction: question
+    input: context
+    output: long_answer
+  medmcqa:
+    instruction: question
+    input: options
+    output: answer
+
+# Data loading settings
+streaming: false
+num_proc: 4
+shuffle: true
+shuffle_seed: ${project.seed}
+
+# Train/eval split
+train_split: 0.95
+eval_split: 0.05
+
+# Caching
+cache_dir: /data/cache
+use_cache: true

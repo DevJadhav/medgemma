@@ -1,0 +1,52 @@
+# Ray Serve Inference Backend Configuration
+# Auto-scaling distributed serving
+
+# @package _global_
+inference:
+  backend: ray_serve
+
+  ray_serve:
+    # Deployment settings
+    num_replicas: 1
+    max_ongoing_requests: 100
+    route_prefix: /inference
+
+    # Autoscaling
+    autoscaling:
+      enabled: true
+      min_replicas: 1
+      max_replicas: 10
+      target_ongoing_requests: 10
+      upscale_delay_s: 30
+      downscale_delay_s: 300
+      smoothing_factor: 1.0
+
+    # Resources per replica
+    resources:
+      num_cpus: 4
+      num_gpus: 1
+      memory: null  # Auto
+
+    # Health checks
+    health_check:
+      period_s: 10
+      timeout_s: 30
+
+    # Batching
+    batching:
+      enabled: true
+      max_batch_size: 8
+      batch_wait_timeout_s: 0.1
+
+  # Model loading
+  model:
+    device_map: auto
+    torch_dtype: bfloat16
+    trust_remote_code: true
+    attn_implementation: flash_attention_2
+
+  # Generation defaults
+  generation:
+    max_tokens: 2048
+    temperature: 0.1
+    top_p: 0.95

@@ -1,0 +1,41 @@
+# @package training.deepspeed
+# DeepSpeed ZeRO Stage 2
+# Balanced memory efficiency and speed
+
+enabled: true
+
+config:
+  bf16:
+    enabled: true
+
+  zero_optimization:
+    stage: 2
+
+    # No CPU offloading for faster training
+    offload_optimizer:
+      device: none
+    offload_param:
+      device: none
+
+    # Communication optimization
+    overlap_comm: true
+    contiguous_gradients: true
+
+    # Bucket sizes
+    reduce_bucket_size: 5e8
+    allgather_bucket_size: 5e8
+
+    # Reduce scatter optimization
+    reduce_scatter: true
+
+    round_robin_gradients: true
+
+  gradient_accumulation_steps: auto
+  gradient_clipping: auto
+  train_micro_batch_size_per_gpu: auto
+
+  communication_data_type: bf16
+  prescale_gradients: false
+
+  steps_per_print: 100
+  wall_clock_breakdown: false

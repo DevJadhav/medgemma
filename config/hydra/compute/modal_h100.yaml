@@ -1,0 +1,69 @@
+# @package compute
+# Modal H100 GPU Compute Configuration
+# High-performance training on Modal's H100 80GB GPUs
+
+backend: modal
+provider: modal
+
+# GPU configuration
+gpu:
+  type: H100
+  count: 8
+  memory_gb: 80
+
+# Container resources
+container:
+  cpu: 32
+  memory_gb: 256
+  timeout_seconds: 86400  # 24 hours
+
+# Modal volumes
+volumes:
+  data:
+    name: medgemma-data
+    mount_path: /data
+  checkpoints:
+    name: medgemma-checkpoints
+    mount_path: /checkpoints
+  cache:
+    name: medgemma-model-cache
+    mount_path: /cache
+
+# Modal secrets
+secrets:
+  - huggingface-secret
+
+# Container image
+image:
+  base: nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+  python_version: "3.11"
+  pip_packages:
+    - torch>=2.6.0
+    - transformers>=4.47.0
+    - accelerate>=0.28.0
+    - peft>=0.10.0
+    - datasets>=2.17.0
+    - deepspeed>=0.13.0
+    - flash-attn>=2.5.0
+    - bitsandbytes>=0.43.0
+
+# Distributed training
+distributed:
+  enabled: true
+  strategy: deepspeed
+  world_size: ${compute.gpu.count}
+  backend: nccl
+
+  # NCCL optimizations for H100 NVLink
+  nccl:
+    NCCL_IB_DISABLE: "0"
+    NCCL_NET_GDR_LEVEL: "5"
+    NCCL_P2P_LEVEL: "NVL"
+    NCCL_DEBUG: "WARN"
+
+# Environment variables
+env:
+  HF_HOME: /cache/huggingface
+  TRANSFORMERS_CACHE: /cache/transformers
+  PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True"
+  CUDA_VISIBLE_DEVICES: "0,1,2,3,4,5,6,7"

@@ -1,0 +1,39 @@
+# Quick Test Experiment Configuration
+# For rapid testing and validation
+
+# @package _global_
+defaults:
+  - /model: medgemma_4b
+  - /training: lora
+  - /training/deepspeed: zero2
+  - /compute: local
+  - /data: medqa
+  - /tuning: asha
+
+project:
+  name: medgemma-quick-test
+  output_dir: ./outputs/test
+  logging_dir: ./outputs/test/logs
+
+# Minimal training for testing
+training:
+  lora:
+    r: 8
+    lora_alpha: 16
+
+  args:
+    max_steps: 100
+    per_device_train_batch_size: 1
+    gradient_accumulation_steps: 4
+    learning_rate: 2e-4
+
+    save_steps: 50
+    save_total_limit: 2
+    eval_steps: 50
+    logging_steps: 10
+
+    report_to: []
+
+# Minimal tuning
+tuning:
+  enabled: false

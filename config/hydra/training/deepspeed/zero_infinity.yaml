@@ -1,0 +1,44 @@
+# DeepSpeed ZeRO-Infinity Configuration
+# NVMe offloading for extreme model sizes
+
+# @package training.deepspeed
+enabled: true
+config:
+  bf16:
+    enabled: true
+
+  zero_optimization:
+    stage: 3
+    offload_optimizer:
+      device: nvme
+      nvme_path: /nvme/offload
+      pin_memory: true
+      buffer_count: 5
+      fast_init: false
+    offload_param:
+      device: nvme
+      nvme_path: /nvme/offload
+      pin_memory: true
+      buffer_count: 5
+      buffer_size: 1e8
+      max_in_cpu: 1e9
+    overlap_comm: true
+    contiguous_gradients: true
+    reduce_bucket_size: 5e8
+    stage3_prefetch_bucket_size: 5e8
+    stage3_param_persistence_threshold: 1e6
+    sub_group_size: 1e9
+    stage3_max_live_parameters: 1e9
+    stage3_max_reuse_distance: 1e9
+
+  # Aio for async I/O
+  aio:
+    block_size: 1048576
+    queue_depth: 8
+    thread_count: 1
+    single_submit: false
+    overlap_events: true
+
+  gradient_accumulation_steps: auto
+  gradient_clipping: auto
+  train_micro_batch_size_per_gpu: auto

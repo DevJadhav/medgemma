@@ -1,0 +1,51 @@
+# Triton Inference Server Configuration
+# Low latency serving with CUDA graphs
+
+# @package _global_
+inference:
+  backend: triton
+
+  triton:
+    # Server settings
+    model_repository: /models
+    http_port: 8000
+    grpc_port: 8001
+    metrics_port: 8002
+
+    # Backend settings
+    backend: python  # python, tensorrt_llm, vllm
+
+    # Instance settings
+    instance_count: 1
+    instance_kind: GPU
+    device_ids: [0]
+
+    # Batching
+    dynamic_batching:
+      enabled: true
+      max_batch_size: 32
+      preferred_batch_sizes: [1, 4, 8, 16, 32]
+      max_queue_delay_microseconds: 100
+
+    # Optimization
+    optimization:
+      enable_cuda_graphs: true
+      cuda_graph_batch_sizes: [1, 2, 4, 8, 16]
+      enable_tensorrt: false
+      tensorrt_precision: fp16
+
+    # Memory
+    pinned_memory_pool_byte_size: 268435456  # 256MB
+    cuda_memory_pool_byte_size: 67108864  # 64MB
+
+    # Logging
+    log_verbose_level: 0
+    log_info: true
+    log_warning: true
+    log_error: true
+
+  # Generation defaults
+  generation:
+    max_tokens: 2048
+    temperature: 0.1
+    top_p: 0.95

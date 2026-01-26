@@ -1,0 +1,45 @@
+# DPO (Direct Preference Optimization) Configuration
+# Preference optimization without reward model
+
+# @package _global_
+training:
+  method: dpo
+
+  # DPO configuration
+  dpo:
+    beta: 0.1
+    loss_type: sigmoid  # sigmoid, hinge, or ipo
+    label_smoothing: 0.0
+    reference_free: false
+    margin: 0.0
+
+  # LoRA for DPO (optional but recommended)
+  lora:
+    r: 32
+    lora_alpha: 64
+    lora_dropout: 0.05
+    bias: none
+    task_type: CAUSAL_LM
+    target_modules:
+      - q_proj
+      - k_proj
+      - v_proj
+      - o_proj
+
+  # Training arguments
+  args:
+    num_train_epochs: 1
+    per_device_train_batch_size: 2
+    gradient_accumulation_steps: 8
+    gradient_checkpointing: true
+    optim: adamw_torch
+    learning_rate: 5e-7
+    weight_decay: 0.01
+    lr_scheduler_type: cosine
+    warmup_ratio: 0.1
+    bf16: true
+    logging_steps: 10
+    save_steps: 100
+    eval_steps: 100
+    max_length: 2048
+    max_prompt_length: 1024

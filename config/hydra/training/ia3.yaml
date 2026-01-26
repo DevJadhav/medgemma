@@ -1,0 +1,33 @@
+# IA3 (Infused Adapter by Inhibiting and Amplifying Inner Activations)
+# Minimal parameter count fine-tuning
+
+# @package _global_
+training:
+  method: ia3
+
+  # IA3 configuration
+  ia3:
+    target_modules:
+      - k_proj
+      - v_proj
+      - down_proj
+    feedforward_modules:
+      - down_proj
+    init_ia3_weights: true
+    task_type: CAUSAL_LM
+
+  # Training arguments
+  args:
+    num_train_epochs: 5
+    per_device_train_batch_size: 4
+    gradient_accumulation_steps: 4
+    gradient_checkpointing: true
+    optim: adamw_torch
+    learning_rate: 3e-4
+    weight_decay: 0.01
+    lr_scheduler_type: cosine
+    warmup_ratio: 0.05
+    bf16: true
+    logging_steps: 10
+    save_steps: 500
+    eval_steps: 500

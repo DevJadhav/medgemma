@@ -1,0 +1,46 @@
+# Megatron-LM Parallelism Configuration
+# Tensor and Pipeline parallelism for very large models
+
+# @package _global_
+training:
+  method: lora
+  distributed_strategy: megatron
+
+  # Megatron parallelism settings
+  megatron:
+    # Tensor parallelism (split attention heads)
+    tensor_parallel_size: 8
+    # Pipeline parallelism (split layers)
+    pipeline_parallel_size: 1
+    # Sequence parallelism
+    sequence_parallel: true
+    # Virtual pipeline stages for interleaving
+    virtual_pipeline_model_parallel_size: null
+    # Gradient accumulation fusion
+    gradient_accumulation_fusion: true
+
+  # LoRA configuration
+  lora:
+    r: 64
+    lora_alpha: 128
+    lora_dropout: 0.05
+    bias: none
+    task_type: CAUSAL_LM
+    target_modules:
+      - q_proj
+      - k_proj
+      - v_proj
+      - o_proj
+
+  # Training arguments
+  args:
+    num_train_epochs: 3
+    per_device_train_batch_size: 1
+    gradient_accumulation_steps: 16
+    gradient_checkpointing: true
+    optim: adamw_torch
+    learning_rate: 1e-4
+    weight_decay: 0.01
+    lr_scheduler_type: cosine
+    warmup_ratio: 0.03
+    bf16: true

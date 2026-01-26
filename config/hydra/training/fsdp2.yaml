@@ -1,0 +1,55 @@
+# FSDP2 (Fully Sharded Data Parallel v2) Configuration
+# PyTorch 2.2+ native per-parameter sharding
+
+# @package _global_
+training:
+  method: lora
+  distributed_strategy: fsdp2
+
+  # FSDP2 configuration
+  fsdp2:
+    # Sharding strategy
+    sharding_strategy: FULL_SHARD  # FULL_SHARD, SHARD_GRAD_OP, HYBRID_SHARD, NO_SHARD
+    # CPU offload
+    cpu_offload: false
+    # Backward prefetch
+    backward_prefetch: BACKWARD_PRE  # BACKWARD_PRE, BACKWARD_POST
+    # Forward prefetch
+    forward_prefetch: true
+    # Activation checkpointing
+    activation_checkpointing: true
+    # Mixed precision
+    mixed_precision: true
+    # Use original params for compute (vs gathered)
+    use_orig_params: true
+    # Limit all gathers (memory vs speed tradeoff)
+    limit_all_gathers: true
+
+  # LoRA configuration
+  lora:
+    r: 64
+    lora_alpha: 128
+    lora_dropout: 0.05
+    bias: none
+    task_type: CAUSAL_LM
+    target_modules:
+      - q_proj
+      - k_proj
+      - v_proj
+      - o_proj
+      - gate_proj
+      - up_proj
+      - down_proj
+
+  # Training arguments
+  args:
+    num_train_epochs: 3
+    per_device_train_batch_size: 2
+    gradient_accumulation_steps: 8
+    gradient_checkpointing: true
+    optim: adamw_torch_fused
+    learning_rate: 2e-4
+    weight_decay: 0.01
+    lr_scheduler_type: cosine
+    warmup_ratio: 0.03
+    bf16: true

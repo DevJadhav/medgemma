@@ -1,0 +1,57 @@
+# @package compute
+# Modal A100 GPU Compute Configuration
+# Cost-effective training on Modal's A100 80GB GPUs
+
+backend: modal
+provider: modal
+
+gpu:
+  type: A100
+  count: 4
+  memory_gb: 80
+
+container:
+  cpu: 16
+  memory_gb: 128
+  timeout_seconds: 86400
+
+volumes:
+  data:
+    name: medgemma-data
+    mount_path: /data
+  checkpoints:
+    name: medgemma-checkpoints
+    mount_path: /checkpoints
+  cache:
+    name: medgemma-model-cache
+    mount_path: /cache
+
+secrets:
+  - huggingface-secret
+
+image:
+  base: nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+  python_version: "3.11"
+  pip_packages:
+    - torch>=2.2.0
+    - transformers>=4.40.0
+    - accelerate>=0.28.0
+    - peft>=0.10.0
+    - datasets>=2.17.0
+    - deepspeed>=0.13.0
+    - flash-attn>=2.5.0
+    - bitsandbytes>=0.43.0
+
+distributed:
+  enabled: true
+  strategy: deepspeed
+  world_size: ${compute.gpu.count}
+  backend: nccl
+
+  nccl:
+    NCCL_IB_DISABLE: "0"
+    NCCL_DEBUG: "WARN"
+
+env:
+  HF_HOME: /cache/huggingface
+  TRANSFORMERS_CACHE: /cache/transformers

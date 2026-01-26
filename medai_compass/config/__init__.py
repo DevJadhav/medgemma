@@ -5,6 +5,7 @@ Provides centralized configuration management with support for:
 - Environment variables
 - Config files (YAML/JSON)
 - Dynamic configuration updates
+- Hydra hierarchical configuration (for training)
 """
 
 from medai_compass.config.settings import (
@@ -27,6 +28,27 @@ from medai_compass.config.settings import (
     reload_config,
 )
 
+# Hydra configuration for training (imported lazily to avoid dependency on hydra)
+try:
+    from medai_compass.config.hydra_config import (
+        MedGemmaConfig,
+        ModelConfig,
+        TrainingConfig,
+        ComputeConfig,
+        DataConfig,
+        TuningConfig,
+        load_config as load_hydra_config,
+        load_config_with_overrides,
+        to_training_args,
+        to_lora_config,
+        to_deepspeed_config,
+        search_space_to_ray_tune,
+        validate_config,
+    )
+    _HYDRA_AVAILABLE = True
+except ImportError:
+    _HYDRA_AVAILABLE = False
+
 __all__ = [
     # Configuration classes
     "MedAIConfig",
@@ -48,4 +70,18 @@ __all__ = [
     "is_debug",
     "is_production",
     "reload_config",
+    # Hydra configuration (for training)
+    "MedGemmaConfig",
+    "ModelConfig",
+    "TrainingConfig",
+    "ComputeConfig",
+    "DataConfig",
+    "TuningConfig",
+    "load_hydra_config",
+    "load_config_with_overrides",
+    "to_training_args",
+    "to_lora_config",
+    "to_deepspeed_config",
+    "search_space_to_ray_tune",
+    "validate_config",
 ]

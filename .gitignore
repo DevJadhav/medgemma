@@ -169,7 +169,7 @@ Thumbs.db
 desktop.ini
 
 # Data files (large datasets)
-data/
+/data/
 *.dcm
 *.dicom
 *.nii
@@ -243,6 +243,7 @@ TODO.md
 NOTES.md
 PRINCIPAL_ARCHITECT_ANALYSIS.md
 CLAUDE.md
+optimization.md
 
 # =============================================================================
 # Frontend Build Artifacts

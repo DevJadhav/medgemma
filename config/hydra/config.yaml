@@ -1,0 +1,39 @@
+# MedGemma Training Configuration
+# Main entry point for Hydra configuration
+#
+# Usage:
+#   uv run python -m medai_compass.train
+#   uv run python -m medai_compass.train model=medgemma_27b
+#   uv run python -m medai_compass.train --multirun training.args.learning_rate=1e-5,1e-4,2e-4
+
+defaults:
+  - model: medgemma_4b
+  - training: lora
+  - training/deepspeed: zero3_offload
+  - data: combined
+  - compute: modal_h100
+  - tuning: asha
+  - _self_
+
+# Project settings
+project:
+  name: medgemma-training
+  version: "1.0.0"
+  seed: 42
+  output_dir: /checkpoints
+  logging_dir: /logs
+  experiment_tracking:
+    enabled: true
+    backend: mlflow  # mlflow, wandb, tensorboard
+    project_name: medgemma
+
+# Hydra configuration
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.num}
+  job:
+    chdir: false
+  verbose: false

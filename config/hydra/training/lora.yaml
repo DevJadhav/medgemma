@@ -1,0 +1,105 @@
+# @package training
+# LoRA Fine-tuning Configuration
+# Low-Rank Adaptation for parameter-efficient fine-tuning
+
+method: lora
+
+# LoRA configuration
+lora:
+  r: 64
+  lora_alpha: 128
+  lora_dropout: 0.05
+  bias: none
+  task_type: CAUSAL_LM
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+  modules_to_save: null
+  fan_in_fan_out: false
+  init_lora_weights: true
+
+# Training arguments
+args:
+  # Training duration
+  num_train_epochs: 3
+  max_steps: -1  # -1 means use epochs
+
+  # Batch size
+  per_device_train_batch_size: 2
+  per_device_eval_batch_size: 4
+  gradient_accumulation_steps: 8
+
+  # Effective batch size = per_device * num_gpus * gradient_accumulation
+  # For 8 GPUs: 2 * 8 * 8 = 128
+
+  # Gradient handling
+  gradient_checkpointing: true
+  gradient_checkpointing_kwargs:
+    use_reentrant: false
+  max_grad_norm: 1.0
+
+  # Optimizer
+  optim: adamw_torch_fused
+  learning_rate: 2e-4
+  weight_decay: 0.01
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 1e-8
+
+  # Learning rate scheduler
+  lr_scheduler_type: cosine
+  warmup_ratio: 0.03
+  warmup_steps: 0
+
+  # Precision
+  bf16: true
+  fp16: false
+  tf32: true
+
+  # Logging
+  logging_steps: 10
+  logging_first_step: true
+  logging_nan_inf_filter: true
+  report_to:
+    - tensorboard
+
+  # Checkpointing
+  save_strategy: steps
+  save_steps: 500
+  save_total_limit: 3
+  save_safetensors: true
+  save_on_each_node: false
+
+  # Evaluation
+  eval_strategy: steps
+  eval_steps: 500
+  eval_accumulation_steps: 1
+  eval_on_start: false
+
+  # Performance
+  dataloader_num_workers: 4
+  dataloader_pin_memory: true
+  dataloader_prefetch_factor: 2
+  dataloader_persistent_workers: true
+
+  # Sequence handling
+  group_by_length: true
+  length_column_name: length
+
+  # Reproducibility
+  seed: ${project.seed}
+  data_seed: ${project.seed}
+
+  # Output
+  output_dir: ${project.output_dir}
+  logging_dir: ${project.logging_dir}
+  overwrite_output_dir: true
+
+  # Distributed training
+  ddp_find_unused_parameters: false
+  ddp_bucket_cap_mb: 25

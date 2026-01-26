@@ -1,0 +1,88 @@
+# @package training
+# QLoRA Fine-tuning Configuration
+# Quantized LoRA for memory-efficient fine-tuning of large models
+
+method: qlora
+
+# LoRA configuration (same as LoRA but with quantization)
+lora:
+  r: 64
+  lora_alpha: 128
+  lora_dropout: 0.1  # Slightly higher dropout for regularization
+  bias: none
+  task_type: CAUSAL_LM
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+  modules_to_save: null
+  fan_in_fan_out: false
+  init_lora_weights: true
+
+# BitsAndBytes quantization config
+quantization:
+  load_in_4bit: true
+  bnb_4bit_compute_dtype: bfloat16
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_use_double_quant: true
+
+# Training arguments
+args:
+  num_train_epochs: 3
+  max_steps: -1
+
+  # Smaller batch size for QLoRA due to quantization overhead
+  per_device_train_batch_size: 1
+  per_device_eval_batch_size: 2
+  gradient_accumulation_steps: 16
+
+  gradient_checkpointing: true
+  gradient_checkpointing_kwargs:
+    use_reentrant: false
+  max_grad_norm: 1.0
+
+  # Use paged optimizer for QLoRA
+  optim: paged_adamw_32bit
+  learning_rate: 2e-4
+  weight_decay: 0.01
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 1e-8
+
+  lr_scheduler_type: cosine
+  warmup_ratio: 0.03
+  warmup_steps: 0
+
+  # BF16 for compute, model stays in 4bit
+  bf16: true
+  fp16: false
+  tf32: true
+
+  logging_steps: 10
+  logging_first_step: true
+  report_to:
+    - tensorboard
+
+  save_strategy: steps
+  save_steps: 500
+  save_total_limit: 3
+  save_safetensors: true
+
+  eval_strategy: steps
+  eval_steps: 500
+
+  dataloader_num_workers: 4
+  dataloader_pin_memory: true
+
+  group_by_length: true
+
+  seed: ${project.seed}
+  output_dir: ${project.output_dir}
+  logging_dir: ${project.logging_dir}
+  overwrite_output_dir: true
+
+  ddp_find_unused_parameters: false

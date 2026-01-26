@@ -1,0 +1,53 @@
+# 5D Parallelism Configuration
+# Hybrid strategy for extreme scale training (100B+ parameters)
+
+# @package _global_
+training:
+  method: lora
+  distributed_strategy: parallelism_5d
+
+  # 5D parallelism configuration
+  parallelism_5d:
+    # Data Parallelism
+    data_parallel_size: 4
+    # Tensor Parallelism (split attention heads)
+    tensor_parallel_size: 8
+    # Pipeline Parallelism (split layers)
+    pipeline_parallel_size: 4
+    # Sequence Parallelism (split sequence)
+    sequence_parallel: true
+    # Expert Parallelism (for MoE models)
+    expert_parallel_size: 1
+
+    # Communication optimization
+    overlap_comm: true
+    # Gradient checkpointing
+    recompute_activations: true
+    # Memory optimization
+    distribute_saved_activations: true
+
+  # LoRA configuration (smaller for 5D)
+  lora:
+    r: 32
+    lora_alpha: 64
+    lora_dropout: 0.05
+    bias: none
+    task_type: CAUSAL_LM
+    target_modules:
+      - q_proj
+      - k_proj
+      - v_proj
+      - o_proj
+
+  # Training arguments
+  args:
+    num_train_epochs: 3
+    per_device_train_batch_size: 1
+    gradient_accumulation_steps: 32
+    gradient_checkpointing: true
+    optim: adamw_torch
+    learning_rate: 5e-5
+    weight_decay: 0.01
+    lr_scheduler_type: cosine
+    warmup_ratio: 0.05
+    bf16: true

@@ -1,0 +1,59 @@
+# H100 Optimized Inference Configuration
+# Maximum performance on NVIDIA H100 GPUs
+
+# @package _global_
+inference:
+  backend: vllm
+  gpu: H100
+
+  # H100-specific optimizations
+  h100:
+    # Flash Attention 2
+    flash_attention_2: true
+    # CUDA Graphs for reduced latency
+    cuda_graphs: true
+    # Tensor cores
+    tensor_cores: true
+    # Compute dtype
+    compute_dtype: bfloat16
+    # FP8 KV cache (H100 feature)
+    kv_cache_dtype: fp8
+    # Max batch size
+    max_batch_size: 32
+    # Dynamic batching
+    dynamic_batching: true
+    # Paged attention
+    paged_attention: true
+    page_size: 16
+
+  # Memory optimization
+  memory:
+    # KV cache configuration
+    kv_cache:
+      enabled: true
+      dtype: fp8
+      max_length: 8192
+    # Prefix caching
+    prefix_caching: true
+    # Memory efficient attention
+    memory_efficient_attention: true
+
+  # CUDA Graphs
+  cuda_graphs:
+    enabled: true
+    batch_sizes: [1, 2, 4, 8, 16]
+    capture_max_batch_size: 16
+
+  # vLLM settings (primary backend)
+  vllm:
+    tensor_parallel_size: 1
+    gpu_memory_utilization: 0.9
+    max_num_seqs: 256
+    enable_prefix_caching: true
+    enforce_eager: false
+
+  # Generation defaults
+  generation:
+    max_tokens: 4096
+    temperature: 0.1
+    top_p: 0.95

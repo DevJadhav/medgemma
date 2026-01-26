@@ -1,0 +1,24 @@
+# Logit Soft-Capping Configuration
+# Prevents logit explosion during training
+
+# @package _global_
+kernels:
+  logit_softcap:
+    enabled: true
+
+    # Soft cap value
+    # logits = soft_cap * tanh(logits / soft_cap)
+    # Bounds logits to [-soft_cap, soft_cap]
+    soft_cap: 30.0
+
+    # Apply to cross-entropy loss
+    apply_to_loss: true
+
+    # Apply during inference
+    apply_to_inference: false
+
+    # Benefits:
+    # - Prevents gradient explosion
+    # - Improves training stability
+    # - Maintains smooth gradients
+    # - Essential for large models (27B+)

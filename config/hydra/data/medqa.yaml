@@ -1,0 +1,42 @@
+# @package data
+# MedQA Dataset Configuration
+# US Medical Licensing Examination style questions
+
+name: medqa
+path: /data/medqa
+source: medalpaca/medical_meadow_medqa
+split: train
+
+preprocessing:
+  max_length: 2048
+  truncation: true
+  padding: max_length
+  return_tensors: pt
+
+template: |
+  ### Instruction:
+  Answer the following medical question. Choose the best answer from the options provided.
+
+  Question: {question}
+
+  Options:
+  {options}
+
+  ### Response:
+  {answer}
+
+column_mappings:
+  instruction: question
+  input: options
+  output: answer
+
+streaming: false
+num_proc: 4
+shuffle: true
+shuffle_seed: ${project.seed}
+
+train_split: 0.95
+eval_split: 0.05
+
+cache_dir: /data/cache
+use_cache: true

@@ -1,0 +1,34 @@
+# @package compute
+# Local GPU Compute Configuration
+# For local development and testing
+
+backend: local
+provider: local
+
+gpu:
+  type: auto  # Auto-detect GPU type
+  count: 1
+  memory_gb: null  # Auto-detect
+
+container:
+  cpu: 8
+  memory_gb: 32
+  timeout_seconds: 86400
+
+# No Modal volumes for local
+volumes: {}
+
+# Use environment variables for secrets
+secrets: []
+
+image: null  # Not applicable for local
+
+distributed:
+  enabled: false
+  strategy: null
+  world_size: 1
+  backend: null
+
+env:
+  HF_HOME: ~/.cache/huggingface
+  TRANSFORMERS_CACHE: ~/.cache/transformers

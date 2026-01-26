@@ -1,0 +1,49 @@
+# Modal Cloud Inference Configuration
+# Serverless GPU inference on Modal
+
+# @package _global_
+inference:
+  backend: modal
+
+  modal:
+    # GPU configuration
+    gpu: H100
+    gpu_count: 1
+    memory: 80  # GB
+    cpu: 8
+    timeout: 300  # seconds
+
+    # Container settings
+    image:
+      base: nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+      python_version: "3.11"
+
+    # Secrets
+    secrets:
+      - huggingface-secret
+
+    # Volumes
+    volumes:
+      models: medgemma-model-cache
+      cache: medgemma-inference-cache
+
+    # Concurrency
+    concurrency_limit: 10
+    container_idle_timeout: 300  # seconds
+    allow_concurrent_inputs: 10
+
+    # Retries
+    retries: 3
+
+  # Model loading on Modal
+  model:
+    device_map: auto
+    torch_dtype: bfloat16
+    trust_remote_code: true
+    attn_implementation: flash_attention_2
+
+  # Generation defaults
+  generation:
+    max_tokens: 2048
+    temperature: 0.1
+    top_p: 0.95

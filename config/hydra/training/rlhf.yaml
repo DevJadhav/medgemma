@@ -1,0 +1,54 @@
+# RLHF/PPO (Reinforcement Learning from Human Feedback) Configuration
+# Full RLHF with PPO optimization
+
+# @package _global_
+training:
+  method: rlhf
+
+  # PPO configuration
+  ppo:
+    ppo_epochs: 4
+    clip_range: 0.2
+    value_coefficient: 0.1
+    entropy_coefficient: 0.01
+    gamma: 1.0
+    lam: 0.95
+    kl_penalty: kl  # kl, abs, mse, or full
+    kl_coefficient: 0.1
+    target_kl: 0.1
+    adap_kl_ctrl: true
+    init_kl_coef: 0.2
+
+  # Reward model configuration
+  reward_model:
+    model_name: null  # Set to reward model path
+    device_map: auto
+    torch_dtype: bfloat16
+
+  # LoRA for policy
+  lora:
+    r: 16
+    lora_alpha: 32
+    lora_dropout: 0.05
+    bias: none
+    task_type: CAUSAL_LM
+    target_modules:
+      - q_proj
+      - k_proj
+      - v_proj
+      - o_proj
+
+  # Training arguments
+  args:
+    num_train_epochs: 1
+    per_device_train_batch_size: 1
+    gradient_accumulation_steps: 16
+    gradient_checkpointing: true
+    optim: adamw_torch
+    learning_rate: 1e-5
+    weight_decay: 0.01
+    lr_scheduler_type: cosine
+    warmup_ratio: 0.1
+    bf16: true
+    logging_steps: 10
+    save_steps: 100

@@ -78,7 +78,7 @@ curl -X POST http://localhost:8000/api/v1/inference/generate \
   -d '{"prompt": "What are the symptoms of pneumonia?", "max_tokens": 256}'
 ```
 
-**Full setup guide**: [docs/PRODUCTION_SETUP.md](docs/PRODUCTION_SETUP.md)
+**Full setup guide**: [docs/operations/PRODUCTION_DEPLOYMENT.md](docs/operations/PRODUCTION_DEPLOYMENT.md)
 
 ### Option 2: Local Development
 
@@ -268,6 +268,60 @@ config = get_inference_config()
 print(f"Backend: {config['backend']}")  # local, modal, or cpu
 print(f"Device: {config['device']}")     # cuda:0, mps, or cpu
 ```
+
+### Ray Optimization Infrastructure
+
+MedAI Compass includes a comprehensive Ray-based ML infrastructure for distributed training and serving.
+
+**Hydra Configuration**:
+```bash
+# Use pre-configured experiment profiles
+config/hydra/
+├── config.yaml           # Main entry point
+├── model/                # MedGemma 4B/27B configs
+├── training/             # LoRA, QLoRA, full fine-tuning
+├── training/deepspeed/   # ZeRO-2, ZeRO-3 with offloading
+├── tuning/               # ASHA, PBT, Hyperband HPO
+├── compute/              # Modal H100, A100, local
+└── experiment/           # Production, quick-test profiles
+```
+
+```python
+# Load configuration
+from medai_compass.config.hydra_config import load_config
+
+cfg = load_config("config/hydra")
+print(cfg.model.name)     # google/medgemma-4b-it
+print(cfg.training.method) # lora
+```
+
+**Ray Tune Hyperparameter Optimization**:
+```python
+from medai_compass.tuning import run_hyperparameter_tuning
+
+# ASHA scheduler for efficient early stopping
+results = run_hyperparameter_tuning(
+    config=cfg,
+    scheduler="asha",
+    num_samples=50,
+)
+print(f"Best config: {results.best_config}")
+```
+
+**Ray Serve Inference**:
+```python
+from medai_compass.inference import deploy_medgemma
+
+# Deploy with autoscaling
+manager = deploy_medgemma(
+    model_name="google/medgemma-4b-it",
+    num_replicas=1,
+    autoscaling=True,
+)
+# Available at http://localhost:8000/generate
+```
+
+See [docs/operations/TRAINING_GUIDE.md](docs/operations/TRAINING_GUIDE.md) for the complete training optimization guide.
 
 ### Environment Variables
 
@@ -468,6 +522,10 @@ Apache 2.0 License. See [LICENSE](LICENSE) for details.
 | Security Hardening | ✅ Complete |
 | Configuration Management | ✅ Complete |
 | Audit Logging & SIEM | ✅ Complete |
+| Hydra Configuration | ✅ Complete |
+| Ray Tune HPO | ✅ Complete |
+| Ray Serve Inference | ✅ Complete |
+| Ray Actors & Workflows | ✅ Complete |
 
 ### New in Latest Release (v2.0)
 
@@ -489,3 +547,9 @@ Apache 2.0 License. See [LICENSE](LICENSE) for details.
 - **Kernel Optimizations**: Fused cross-entropy, RoPE, SwiGLU (4x memory reduction)
 - **Quality Gates**: Automated benchmarking for training and inference
 - **MedGemma 27B**: Default model with H100 optimization
+
+**Ray Optimization Infrastructure** (NEW):
+- **Hydra Configuration**: Hierarchical YAML configs for models, training, tuning, compute
+- **Ray Tune HPO**: ASHA, PBT, Hyperband schedulers for hyperparameter optimization
+- **Ray Serve**: Production inference deployment with autoscaling and health monitoring
+- **Ray Actors**: Evaluation, metrics aggregation, checkpoint management actors

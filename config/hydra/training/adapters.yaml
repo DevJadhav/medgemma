@@ -1,0 +1,34 @@
+# Adapter Module Configuration
+# Houlsby and Pfeiffer adapter variants
+
+# @package _global_
+training:
+  method: adapters
+
+  # Adapter configuration
+  adapter:
+    adapter_type: pfeiffer  # houlsby or pfeiffer
+    bottleneck_dim: 64
+    reduction_factor: 16
+    non_linearity: relu
+    original_ln_before: true
+    original_ln_after: true
+    residual_before_ln: true
+    adapter_residual_before_ln: false
+    dropout: 0.1
+
+  # Training arguments
+  args:
+    num_train_epochs: 3
+    per_device_train_batch_size: 4
+    gradient_accumulation_steps: 4
+    gradient_checkpointing: true
+    optim: adamw_torch
+    learning_rate: 1e-4
+    weight_decay: 0.01
+    lr_scheduler_type: cosine
+    warmup_ratio: 0.03
+    bf16: true
+    logging_steps: 10
+    save_steps: 500
+    eval_steps: 500
