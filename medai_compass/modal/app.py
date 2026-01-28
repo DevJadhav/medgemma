@@ -70,9 +70,9 @@ if MODAL_AVAILABLE:
             TRAINED_MODEL_MOUNT_PATH: checkpoints_volume,
         },
         timeout=600,
-        scaledown_window=300,
+        scaledown_window=300,  # Scale down after 5 minutes of inactivity
         secrets=[modal.Secret.from_name("huggingface-secret")],
-        min_containers=1,  # Keep 1 warm container to eliminate cold starts
+        min_containers=0,  # Scale to zero when idle to save costs (~$3.58/hr for H100)
         max_containers=10,  # Scale up under load
     )
     @modal.concurrent(max_inputs=4)
@@ -545,43 +545,10 @@ if MODAL_AVAILABLE:
     )
     def test_inference(prompt: str = "What are the symptoms of pneumonia?") -> dict:
         """Test function for quick inference testing."""
-        inference = MedGemmaInference()
-        inference.load_model()
-        return inference.generate(prompt)
-    
-    
-    # Scheduled warm-up function to keep container ready during business hours
-    # Runs every 5 minutes to prevent cold starts without keeping container 24/7
-    @app.function(
-        image=medgemma_image,
-        gpu="H100",
-        volumes={"/root/.cache/huggingface": model_cache},
-        timeout=60,
-        schedule=modal.Period(minutes=5),  # Ping every 5 minutes
-    )
-    def keep_warm():
-        """
-        Scheduled warm-up function that pings the model every 5 minutes.
-        
-        This prevents cold starts during active usage periods while allowing
-        the container to scale down during extended idle periods (overnight).
-        
-        Combined with min_containers=1, this provides:
-        - Instant response for first request (no cold start)
-        - Continuous warm state during business hours
-        - Cost optimization vs. always-on H100 ($3.58/hr)
-        """
-        import datetime
-        
-        inference = MedGemmaInference()
-        health = inference.health_check.remote()
-        
-        return {
-            "timestamp": datetime.datetime.utcnow().isoformat(),
-            "status": "warm",
-            "model_loaded": health.get("model_loaded", False),
-            "gpu": health.get("gpu_name", "unknown"),
-        }
+        # Use the deployed class - model loads automatically via @modal.enter()
+        inference_cls = modal.Cls.from_name("medai-compass", "MedGemmaInference")
+        inference = inference_cls()
+        return inference.generate.remote(prompt)
     
     
     @app.local_entrypoint()
