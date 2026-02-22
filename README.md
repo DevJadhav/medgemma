@@ -114,6 +114,12 @@ uv run python -m medai_compass.api.main
 
 ---
 
+## 🏛️ System Architecture
+
+![System Architecture](docs/MedGemma_Architecture.png)
+
+---
+
 ## 📁 Project Structure
 
 ```
