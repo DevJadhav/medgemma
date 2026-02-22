@@ -266,7 +266,7 @@ def create_diagnostic_report(
             },
             {
                 "url": "http://medai-compass.com/fhir/extensions/ai-model",
-                "valueString": "MedGemma 1.5 4B"
+                "valueString": "MedGemma 27B"
             }
         ]
     }

@@ -493,7 +493,7 @@ def localize_findings(state: DiagnosticState) -> dict[str, Any]:
     Node: localize_findings
 
     Uses attention-based localization to identify regions of interest
-    for each finding. Compatible with MedGemma 1.5's bounding box output.
+    for each finding. Compatible with MedGemma 27B's bounding box output.
     """
     findings = state.get("findings", [])
     preprocessed_images = state.get("preprocessed_images", [])
@@ -551,7 +551,7 @@ def _generate_bounding_box(
     Generate bounding box for a finding.
 
     Uses heuristics based on finding type and image analysis.
-    In production, this would use MedGemma 1.5's native localization.
+    In production, this would use MedGemma 27B's native localization.
 
     Args:
         image: Image array (H, W, 3)

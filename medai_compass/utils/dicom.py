@@ -379,9 +379,9 @@ def prepare_3d_for_medgemma(
     window_width: float = None
 ) -> list[np.ndarray]:
     """
-    Prepare 3D volume for MedGemma 1.5's 3D imaging capabilities.
+    Prepare 3D volume for MedGemma 27B's 3D imaging capabilities.
 
-    MedGemma 1.5 supports 3D imaging by processing multiple key slices
+    MedGemma 27B supports 3D imaging by processing multiple key slices
     from different anatomical planes.
 
     Args:

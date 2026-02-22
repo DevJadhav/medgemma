@@ -214,7 +214,7 @@ class Test3DVolumeProcesing:
         assert sagittal.shape == (sample_ct_volume.shape[0], sample_ct_volume.shape[1])
 
     def test_prepare_3d_for_medgemma(self, sample_ct_volume):
-        """Test preparing 3D volume for MedGemma 1.5 input."""
+        """Test preparing 3D volume for MedGemma 27B input."""
         from medai_compass.utils.dicom import prepare_3d_for_medgemma
 
         # Request 4 slices per plane (3 planes = 12 total slices)

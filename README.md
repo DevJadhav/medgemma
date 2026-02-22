@@ -27,7 +27,7 @@ MedAI Compass is a **HIPAA-compliant multi-agent platform** that integrates Goog
 ### 🌟 Competitive Differentiation
 
 1. **Multi-Framework Agent Architecture**: Seamless integration of **LangGraph** (stateful diagnostics), **CrewAI** (role-based clinical workflows), and **AutoGen** (conversational triage).
-2. **MedGemma 1.5 Exclusive Features**: Leverages cutting-edge capabilities not found in the base model, including 3D CT/MRI volume processing, whole-slide pathology analysis, longitudinal CXR comparison, and bounding box localization.
+2. **MedGemma 27B Exclusive Features**: Leverages cutting-edge capabilities not found in the base model, including 3D CT/MRI volume processing, whole-slide pathology analysis, longitudinal CXR comparison, and bounding box localization.
 3. **Production-Grade Safety System**: Complete NeMo Guardrails integration, 100% critical finding detection, strict human escalation gateways, and uncertainty quantification via MC Dropout.
 4. **Full HIPAA Compliance**: AES-256 encryption at rest, TLS 1.3 in transit, automated PHI scrubbing, and 6-year tamper-evident audit logging.
 5. **Quantitative Advantages**: <200ms latency for chat, <500ms p95 for diagnostic analysis, 75%+ MedQA accuracy, and over 1,900 automated unit and integration tests yielding a 99%+ safety pass rate.
