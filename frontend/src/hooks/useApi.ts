@@ -44,11 +44,23 @@ async function fetchAPI<T>(
   });
 
   if (!response.ok) {
-    const error: APIError = await response.json().catch(() => ({
+    const error: any = await response.json().catch(() => ({
       error: 'Unknown error',
-      detail: `HTTP ${response.status}: ${response.statusText}`,
     }));
-    throw new Error(error.detail || error.error);
+
+    let errorMessage = error.error || `HTTP ${response.status}: ${response.statusText}`;
+
+    if (error.detail) {
+      if (typeof error.detail === 'string') {
+        errorMessage = error.detail;
+      } else if (Array.isArray(error.detail)) {
+        errorMessage = error.detail.map((e: any) => e.msg || JSON.stringify(e)).join(', ');
+      } else if (typeof error.detail === 'object') {
+        errorMessage = JSON.stringify(error.detail);
+      }
+    }
+
+    throw new Error(errorMessage);
   }
 
   return response.json();
